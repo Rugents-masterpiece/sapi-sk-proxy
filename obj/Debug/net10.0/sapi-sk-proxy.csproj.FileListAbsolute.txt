@@ -35,3 +35,7 @@
 /home/rugent/public_repo/sapi-sk-proxy/obj/Debug/net10.0/sapi-sk-proxy.pdb
 /home/rugent/public_repo/sapi-sk-proxy/obj/Debug/net10.0/sapi-sk-proxy.genruntimeconfig.cache
 /home/rugent/public_repo/sapi-sk-proxy/obj/Debug/net10.0/ref/sapi-sk-proxy.dll
+/home/rugent/public_repo/sapi-sk-proxy/bin/Debug/net10.0/docs/openapi/connector.json
+/home/rugent/public_repo/sapi-sk-proxy/bin/Debug/net10.0/docs/openapi/enterprise.json
+/home/rugent/public_repo/sapi-sk-proxy/bin/Debug/net10.0/docs/openapi/klienti.json
+/home/rugent/public_repo/sapi-sk-proxy/bin/Debug/net10.0/docs/openapi/sapi.json

@@ -28,9 +28,174 @@
         <member name="M:SapiSkProxy.Controllers.DocumentController.AcknowledgeDocument(System.String)">
             <summary>Acknowledge document receipt. This operation is idempotent.</summary>
         </member>
+        <member name="T:SapiSkProxy.Controllers.EnterpriseController">
+            <summary>
+            Enterprise API Core endpoints — served from in-memory mock store (generated data),
+            matching the public ePošťák Enterprise API contract (epostak.sk/api/openapi.enterprise.json).
+            </summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.SendDocument(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Send a document (dry-run validated, queued for delivery).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.SendBatch(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Send up to 50 documents in a batch.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Preflight(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Dry-run validation of a send without creating a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.DocumentStatus(System.String)">
+            <summary>Document delivery status.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.StatusBatch(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Status of up to 100 documents.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Evidence(System.String)">
+            <summary>AS4 delivery confirmation and MLS for a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.SupportPacket(System.String)">
+            <summary>Full support packet (ZIP manifest) for a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Envelope(System.String)">
+            <summary>Signed AS4 multipart envelope from WORM archive.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.DocumentEvents(System.String)">
+            <summary>Chronological lifecycle events of a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Responses(System.String)">
+            <summary>Invoice response history of a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Pdf(System.String)">
+            <summary>PDF rendering of a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Ubl(System.String)">
+            <summary>UBL XML payload of a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Respond(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Send an invoice response (accept/reject) to an inbound document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Mark(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Mark document state manually (processed / archived).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Inbox(System.Int32,System.String)">
+            <summary>Paginated list of received invoice documents.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboxDetail(System.String)">
+            <summary>Single received document with UBL payload.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboxAck(System.String)">
+            <summary>Acknowledge processing of a received document (idempotent).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboxAll(System.Int32)">
+            <summary>Cross-firm inbox for integrator keys.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboundList(System.Int32)">
+            <summary>Cursor-based list of received Peppol documents.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboundDetail(System.String)">
+            <summary>Pull: detail of received document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboundUbl(System.String)">
+            <summary>Raw UBL XML of a received document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboundAck(System.String)">
+            <summary>Explicit acknowledgement that an inbound document was processed locally.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.InboundImport(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Import UBL document received outside Peppol.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.OutboundList(System.Int32)">
+            <summary>Cached Peppol participant lookup by ico.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.OutboundDetail(System.String)">
+            <summary>Pull: detail of sent document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.OutboundMdn(System.String)">
+            <summary>Raw AS4 MDN delivery receipt.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.OutboundUbl(System.String)">
+            <summary>Raw UBL XML of a sent document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.OutboundEvents(System.Int32)">
+            <summary>Internal document event stream (lifecycle).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxList">
+            <summary>List Box items (durable staging layer).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxDetail(System.String)">
+            <summary>Box item detail.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxCreate(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Stage a document in Box.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxSchedule(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Schedule Box item send.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxSendNow(System.String)">
+            <summary>Trigger Box item dispatch now.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxRetry(System.String)">
+            <summary>Retry Box item.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.BoxCancel(System.String)">
+            <summary>Cancel Box item.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Extract(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>OCR extraction from PDF/image.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.ExtractBatch(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Batch OCR extraction (max 50).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Review(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Apply human corrections to OCR result without re-OCR.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Parse(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Parse UBL XML into normalized JSON.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Convert(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Convert between JSON business document and UBL XML.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Validate(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Validate document against Peppol BIS 3.0 rules.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.ValidatePublic(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Public BIS 3.0 validation (no registration required).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.ParticipantLookup(System.String,System.String)">
+            <summary>SMP capability lookup for a participant.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.ResolveParticipant(System.String,System.String,System.String)">
+            <summary>Resolve a company to its Peppol participant (single step).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.DirectorySearch(System.String)">
+            <summary>Full-text search in cached Peppol directory (3.6M+ records).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Capabilities(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Sondest SMP of a participant for accepted document types.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.ParticipantsBatch(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Batch verification of up to 100 participants.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.CompanyLookup(System.String)">
+            <summary>Company registry lookup (FSR) + Peppol status by ico.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Statistics">
+            <summary>Aggregated document statistics.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Audit(System.Int32)">
+            <summary>Security / authorization audit feed.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Account">
+            <summary>Account info (firm, plan, metering).</summary>
+        </member>
         <member name="P:SapiSkProxy.Options.SapiSkOptions.RefreshAheadSeconds">
             <summary>
             How many seconds before expiry to proactively refresh the token. Default 60s.
+            </summary>
+        </member>
+        <member name="T:SapiSkProxy.Services.MockStore">
+            <summary>
+            In-memory store for mock-backed API categories (Klienti, Connector, Enterprise).
+            Seeded with generated realistic data so every endpoint returns non-empty payloads.
             </summary>
         </member>
         <member name="T:Program">
