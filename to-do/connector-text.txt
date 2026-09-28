@@ -1,0 +1,1162 @@
+Connector: keď ERP posiela údaje faktúry v JSON
+Najkratší tok: získajte token, vyberte firmu cez customerRef a odošlite jeden business JSON. Príjem, obchodné odpovede, webhooky a vlastný export riešte až potom, keď ich potrebujete.
+
+Vyberte si integračný tok
+Začnite tam, kde sa práve nachádza váš tím: tokeny, odosielanie, príjem alebo prevádzka.
+
+Pripojenie
+Získajte token a vyberte firmu cez customerRef.
+
+Pripojiť ERP
+SDK alebo krátkodobý Bearer token; bez X-Firm-Id.
+Odosielanie
+Pošlite alebo uložte business JSON bez UBL projektu.
+
+Odoslať prvý doklad
+Jeden kanonický JSON pre send aj stage.
+Príjem
+Čítajte events, načítajte doklad a potvrďte lokálny import.
+
+Prijať a importovať doklad
+Cursor polling funguje okamžite; webhook je voliteľný.
+Odoslať obchodnú odpoveď
+respond je rozhodnutie protistrane, nie potvrdenie importu.
+Vlastný export
+Mapper a Autopilot sú viditeľná voliteľná cesta v Connector Studiu.
+
+Otestovať export v Connector Studiu
+Mapovanie, náhľad, Autopilot a riadené odoslanie.
+01
+Pripojiť ERP
+Oficiálne SDK rieši OAuth automaticky. Pri raw HTTP vymeňte client_id a sk_int_* client_secret za 15-minútový access_token. Firmu potom na každom Connector volaní určíte uloženým customerRef.
+
+Postup
+01
+Načítajte client_id a client_secret iba na serveri ERP.
+02
+Zavolajte POST /api/v1/auth/token s grant_type=client_credentials.
+03
+Token cacheujte do expires_in a Connector requesty posielajte bez X-Firm-Id.
+Endpoint
+POST
+/api/v1/auth/token
+Vyskúšať
+Token request
+curl
+
+Copy
+curl -X POST https://dev.epostak.sk/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"client_credentials","client_id":"YOUR_CLIENT_ID","client_secret":"sk_int_test_...","scope":"documents:send documents:read documents:write webhooks:read webhooks:write"}'
+Prihlásenie
+Názov	Typ	Povinné	Popis
+grant_type	string	áno	Pevná hodnota pre server-to-server prihlásenie.
+client_id	string	áno	ID prideleného integrátorského kľúča.
+client_secret	string	áno	Pridelený kompatibilný sk_int_* secret; držte ho iba na serveri.
+scope	string	nie	Voliteľný medzerami oddelený podrozsah scope povolených pre kľúč. Ak ho vynecháte, token zdedí celý rozsah kľúča. Pre kompletný Connector lifecycle vrátane webhooku použite documents:send documents:read documents:write webhooks:read webhooks:write.
+Ďalšie kroky
+V Integrátorskom paneli uložte stabilné customerRef pre každú spravovanú firmu.
+Rovnaký token môže pracovať s viacerými schválenými firmami; každé volanie má vlastné customerRef.
+02
+Odoslať prvý doklad
+Pošlite firemné údaje príjemcu, hlavičku Idempotency-Key a stabilné externalId. delivery=send je explicitný pokyn držiteľa scope documents:send a nie je podmienený autoSendEnabled; state=queued znamená prijaté asynchrónne odoslanie. Iba delivery=stage doklad uloží na neskoršie uvoľnenie a pri novom príkaze vráti send/cancel odkazy.
+
+Postup
+01
+Vyberte odosielateľa cez customerRef.
+02
+Príjemcu identifikujte cez country a správne companyId, taxId alebo vatId.
+03
+Pri retry zachovajte rovnaké externalId, Idempotency-Key aj telo requestu.
+Endpoint
+POST
+/api/v1/connector/documents
+Vyskúšať
+Prvý DEV doklad A → B
+Použite JWT získaný vlastným DEV kľúčom, customerRef firmy A a DIČ pridelenej firmy B. Spustite s curl a jq. Obe firmy musia mať dokončenú testovaciu Peppol registráciu. Pri opakovaní zachovajte rovnaké telo aj ID; pre ďalší doklad zvoľte nové ID. Odpoveď potvrdzuje prijatie, nie doručenie — ďalej sledujte vrátený odkaz na stav.
+
+curl
+
+Copy
+# Set TOKEN, CUSTOMER_REF_A and TAX_ID_B from your DEV configuration.
+export DOCUMENT_ID="sandbox-a-b-001"
+jq -n --arg customerRef "$CUSTOMER_REF_A" --arg taxId "$TAX_ID_B" --arg id "$DOCUMENT_ID" --arg date "$(date +%F)" '{
+  customerRef: $customerRef, externalId: $id, number: $id,
+  delivery: "send", type: "invoice", issueDate: $date, dueDate: $date,
+  currency: "EUR", buyerReference: "DEV-TEST",
+  recipient: {country: "SK", taxId: $taxId},
+  lines: [{description: "Testovacia sluzba", quantity: 1, unit: "C62", unitPrice: 1, vatRate: 23, taxTreatment: "standard"}]
+}' > invoice.json
+curl --fail-with-body "https://dev.epostak.sk/api/v1/connector/documents" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $DOCUMENT_ID" \
+  --data-binary @invoice.json
+Payload faktúry
+Rozšírený príklad ukazuje aj platobné údaje, adresu, zľavu, preddavok a prílohu. Úplná tabuľka polí je v API referencii nižšie.
+
+json
+
+Copy
+{
+  "customerRef": "erp-acme",
+  "externalId": "invoice-2026-0042",
+  "delivery": "send",
+  "type": "invoice",
+  "number": "2026-0042",
+  "recipient": {
+    "country": "SK",
+    "name": "ODBERATEĽ, s.r.o.",
+    "taxId": "2120123456",
+    "address": { "street": "Hlavná 1", "city": "Bratislava", "postalCode": "811 01" }
+  },
+  "issueDate": "2026-07-15",
+  "dueDate": "2026-07-29",
+  "currency": "EUR",
+  "iban": "SK3112000000198742637541",
+  "paymentMethod": "bank_transfer",
+  "paymentTerms": "Splatnosť 14 dní",
+  "variableSymbol": "20260042",
+  "buyerReference": "ODD-IT",
+  "orderReference": "OBJ-1042",
+  "lines": [{
+    "description": "Mesačná licencia",
+    "quantity": 1,
+    "unit": "C62",
+    "unitPrice": 100,
+    "vatRate": 23,
+    "taxTreatment": "standard",
+    "discount": 5
+  }],
+  "prepayments": [{ "amountWithVat": 20, "vatRate": 23, "settlementDate": "2026-07-10" }],
+  "attachments": [{ "fileName": "objednavka.pdf", "mimeType": "application/pdf", "content": "JVBERi0xLjQ..." }]
+}
+Minimálny request
+Názov	Typ	Povinné	Popis
+Idempotency-Key	header	áno	Stabilný kľúč rovnakého business príkazu.
+customerRef	string	áno	ERP referencia odosielajúcej firmy.
+externalId	string	áno	Stabilné ID dokladu v ERP.
+number	string	áno	Číslo faktúry alebo dobropisu.
+recipient	object	áno	country a aspoň jedno správne business ID.
+lines[]	array	áno	Aspoň jedna položka.
+buyerReference | orderReference	string	áno	Interná referencia kupujúceho alebo číslo jeho objednávky, najviac 100 znakov.
+Práca so stavmi
+send
+Doklad sa prijme do asynchrónneho odoslania.
+stage
+Doklad sa uloží a odpoveď vráti send a cancel odkazy.
+Ďalšie kroky
+Úplnú schému každého koreňového a vnoreného poľa nájdete v sekcii Odoslať business doklad.
+Na test medzi firmami použite happy path v Integrátorskom paneli.
+03
+Prijať a importovať doklad
+Čítajte udalosti pre konkrétne customerRef. Pri document.received načítajte detail, uložte doklad v jednej lokálnej transakcii a až potom zavolajte acknowledge.
+
+Postup
+01
+Volajte GET /connector/events?customerRef=... s posledným cursorom.
+02
+Deduplikujte podľa event id a načítajte detail dokumentu.
+03
+nextCursor uložte až po úspešnom lokálnom commite.
+04
+Acknowledge opakujte bezpečne, kým dostanete úspech.
+Endpoint
+GET
+/api/v1/connector/events
+Vyskúšať
+Polling
+curl
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/events?customerRef=erp-acme&limit=50" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN"
+Potvrdenie importu
+curl
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/documents/DOCUMENT_ID/acknowledge?customerRef=erp-acme" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN"
+Práca so stavmi
+document.received
+Doklad je pripravený na import do ERP.
+acknowledge
+Iba lokálne potvrdenie importu; protistrane nič neposiela.
+Ďalšie kroky
+Voliteľný webhook nastavte raz pre integrátora; každá udalosť obsahuje customerRef.
+04
+Odoslať obchodnú odpoveď
+Respond použite až vtedy, keď ERP pozná obchodné rozhodnutie k prijatému dokladu. Acknowledge a respond sú dve nezávislé akcie.
+
+Postup
+01
+Import potvrďte cez acknowledge.
+02
+Po rozhodnutí pošlite jeden podporovaný business status cez respond.
+Endpoint
+POST
+/api/v1/connector/documents/{documentId}/respond
+Vyskúšať
+Akceptovať doklad
+curl
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/documents/DOCUMENT_ID/respond?customerRef=erp-acme" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"accepted"}'
+Práca so stavmi
+received
+Podporovaný obchodný stav.
+in_process
+Podporovaný obchodný stav.
+under_query
+Podporovaný obchodný stav.
+conditionally_accepted
+Podporovaný obchodný stav.
+rejected
+Podporovaný obchodný stav.
+accepted
+Podporovaný obchodný stav.
+paid
+Podporovaný obchodný stav.
+Ďalšie kroky
+Neodosielajte accepted automaticky iba preto, že import do ERP prešiel.
+05
+Otestovať export v Connector Studiu
+Ak ERP ešte nevie vytvoriť kanonický Connector JSON, vložte vlastný JSON alebo CSV export do Studia. Mapper vytvorí mapovanie a náhľad; Autopilot pomôže odhaliť a opraviť bezpečné odchýlky. Výsledok môžete najprv uložiť cez stage.
+
+Postup
+01
+Otvorte Connector Studio z panelu alebo týmto odkazom.
+02
+Vložte reprezentatívny ERP export a označte zdrojové polia.
+03
+Skontrolujte kanonický JSON a výsledok validácie.
+04
+Najprv použite stage; send povoľte až po overení mapovania.
+Endpoint
+POST
+/api/v1/connector/mapper
+Vyskúšať
+Vstup do Studia
+curl
+
+Copy
+# UI: /integrator/connector?tool=studio#connector-studio
+# API reference: POST /api/v1/connector/mapper
+Ďalšie kroky
+Mapper a Autopilot sú pomocné nástroje; výsledný runtime kontrakt ostáva POST /connector/documents.
+Začnite v sandboxe
+Operátor manuálne pripraví účet a dve syntetické firmy vrátane ich testovacej Peppol registrácie. Vy si potom pre každú schválenú firmu nastavíte vlastné customerRef. Produkcia je oddelená.
+
+1. Požiadajte o prístup
+Na info@epostak.sk pošlite presný e-mail pre prístup. Ostatné údaje sú voliteľné. Operátor pripraví účet a dve syntetické firmy A/B; vlastný API kľúč si vytvoríte v DEV portáli.
+
+Základná URL sandboxu: https://dev.epostak.sk/api/v1
+Vlastný kľúč si vytvoríte v DEV portáli; operátor priradí dve testovacie firmy; Connector nemá verejné API na vytvorenie alebo vyhľadanie zákazníka.
+Požiadať o manuálne pripravený sandbox
+2. Nastavte si customerRef
+V integrátorskom dashboarde otvorte Firmy a pre každú už schválenú firmu zvoľte vlastnú stabilnú ERP referenciu. Nepoužívajte IČO ani interné firmId ako automatický fallback. Po prvom stage/send použití zostáva referencia uzamknutá.
+
+Nastaviť firmy
+3. Použite SDK alebo získajte token
+Odporúčame oficiálne SDK, ktoré token cacheuje a customerRef posiela automaticky. Pri raw HTTP vytvorte z pridelených credentials 15-minútový JWT cez client_credentials, uchovajte ho do expirácie a potom vytvorte nový.
+
+SDK quickstart
+Token request
+Testovací príjemca v sandboxe
+Sandbox overuje príjemcu v testovacej sieti Peppol. Reálne IČO preto funguje iba vtedy, keď má firma registráciu aj v testovacej sieti; produkčná registrácia sama nestačí. Najistejší prvý test odošlite medzi dvoma pripravenými spravovanými sandbox firmami.
+
+Spustiť presný test medzi dvoma firmami
+4. Pošlite business JSON
+Použite vlastné customerRef zo schválenej firmy a bežné firemné alebo daňové ID príjemcu. Connector sám overí príjemcu v správnej sieti a vyrieši elektronický formát aj doručenie.
+
+Authorization: Bearer <krátkodobý JWT>
+Bez X-Firm-Id a bez sieťových identifikátorov.
+Odoslať prvý doklad
+5. Čítajte udalosti, potvrďte import a odpovedzte
+Pravidelne volajte GET /connector/events. nextCursor uložte až po lokálnom commite. Pri document.received importujte doklad a idempotentne zavolajte acknowledge. Ak chcete odosielateľovi oznámiť business stav faktúry, zavolajte respond; nejde o ten istý krok.
+
+Čítať udalosti
+Potvrdiť spracovanie
+Odoslať business odpoveď
+6. Voliteľne zapnite okamžitý push
+Connector obsahuje vlastný webhook, takže kvôli push notifikáciám nemusíte prechádzať na Enterprise API. Nastavíte ho raz pre celý integrátorský účet; dokumentové udalosti majú rovnaký business tvar ako polling a voliteľné lifecycle udalosti oznamujú zmeny vzťahu s firmou alebo jej digitálnym poštárom. Všetky nesú customerRef, ale nikdy nie migračný kód ani identitu používateľa. GET /connector/events ponechajte ako spoľahlivý checkpoint dokumentov.
+
+X-Webhook-Signature má tvar sha256=<hex>. HMAC-SHA256 počítajte nad X-Webhook-Timestamp + '.' + pôvodné raw body; timestamp je v sekundách.
+Secret sa zobrazí iba pri vytvorení alebo rotácii; uložte ho do secret managera a použite nezmenený ako UTF-8 text, nie dekódovaný hex. Testy aj reálne doručenia používajú aktuálny secret webhooku.
+Deduplikujte podľa X-Webhook-Event-Id a pri dočasnej chybe vráťte 503; 500 je terminálny výsledok bez retry.
+Nastaviť webhook
+História doručení
+Základná URL sandboxu: https://dev.epostak.sk/api/v1. Produkčný host a prístupové údaje dostanete až pri osobitne schválenom prechode do produkcie.
+Strojový kontrakt: Connector OpenAPI JSON obsahuje iba auth a Connector operácie, oba servery (sandbox aj produkciu) a scope pre každú operáciu.
+POST
+/api/v1/auth/token
+Získať krátkodobý token
+Použite pridelené client_id a kompatibilný sk_int_* client_secret s grant_type=client_credentials. Existujúci podporovaný integrátorský credential nemusíte meniť iba kvôli Connectoru. access_token uchovajte do expires_in (900 sekúnd) a potom vytvorte nový rovnakým volaním. V Connector volaniach pošlite Authorization: Bearer a customerRef, ktoré ste si nastavili pre schválenú firmu; X-Firm-Id neposielajte.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Content-Type	string	REQ	application/json
+Parametre
+Názov	Typ	Povinné	Popis
+grant_type	string	REQ	Pevná hodnota pre server-to-server prihlásenie. (default: client_credentials) (povolené: client_credentials)
+client_id	string	REQ	ID prideleného integrátorského kľúča.
+client_secret	string	REQ	Pridelený kompatibilný sk_int_* secret; držte ho iba na serveri.
+scope	string	optional	Voliteľný medzerami oddelený podrozsah scope povolených pre kľúč. Ak ho vynecháte, token zdedí celý rozsah kľúča. Pre kompletný Connector lifecycle vrátane webhooku použite documents:send documents:read documents:write webhooks:read webhooks:write.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST https://dev.epostak.sk/api/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"client_credentials","client_id":"YOUR_CLIENT_ID","client_secret":"sk_int_test_...","scope":"documents:send documents:read documents:write webhooks:read webhooks:write"}'
+Príklady odpovedí
+200 Použite access_token ako Bearer počas najviac 900 sekúnd.
+
+Copy
+{"access_token":"eyJhbGc...","token_type":"Bearer","expires_in":900,"scope":"documents:send documents:read documents:write firms:manage webhooks:read webhooks:write"}
+Odpovede
+200
+Použite access_token ako Bearer počas najviac 900 sekúnd.
+401
+Neplatné alebo neaktívne pridelené credentials.
+Connector
+Jedno business API pre ERP: pošlite doklad, čítajte doklady a udalosti, voliteľne zapnite webhook a potvrďte spracovanie. Sieťové a transportné detaily rieši ePošťák.
+
+Managed ERP flow
+Connector je odporúčaný štart, ak ERP nechce skladať celý Enterprise lifecycle po krokoch.
+
+POST /connector/documents je jediný odporúčaný vstup pre nové integrácie.
+Príjemcu stačí určiť bežným firemným alebo daňovým ID.
+Pri delivery=stage použite iba send alebo cancel link v odpovedi; request akcie nemá telo.
+Odoslať doklad
+Čítať doklady
+Oprava už odoslanej faktúry
+Každý opravný doklad má vlastné jedinečné number, externalId a Idempotency-Key. precedingDocumentNumber označuje pôvodnú faktúru. Zníženie sumy alebo úplné storno pošlite ako credit_note, navýšenie ako debit_note. Na opravu textu alebo údajov bez zmeny sumy použite correction (384): všetky lines[].unitPrice a prepaidAmount musia byť nulové. V odpovedi je type=invoice a businessType=correction. Pôvodný doklad sa neprepisuje. Endpoint cancel ruší iba ešte neodoslaný staged dokument.
+
+Ťarchopis a faktúra k zálohovej platbe
+type=debit_note vytvorí ťarchopis s kódom 383 a vyžaduje precedingDocumentNumber pôvodnej faktúry. type=prepayment_invoice vytvorí samostatnú faktúru s kódom 386. prepayments a prepaidAmount na konečnej faktúre slúžia na zúčtovanie zaplatených súm; nenahrádzajú samostatný doklad. Proforma výzva na platbu nie je automaticky faktúrou typu 386. V odpovediach v1 a udalostiach zostáva type=invoice; voliteľné businessType obsahuje debit_note alebo prepayment_invoice. Pri čítaní použite businessType, ak je prítomné, inak type.
+
+Príjemca: použite správny typ ID
+country určuje krajinu registrácie. companyId je registračné číslo firmy, taxId lokálne daňové ID a vatId VAT ID. Connector oreže okrajové medzery a normalizuje porovnanie, ale nikdy nehádže jeden typ ID do iného poľa.
+
+Pre zahraničnú firmu začnite country + jedným správne klasifikovaným ID.
+Ak pošlete viac ID, všetky musia viesť k tej istej firme; inak dostanete 409 RECIPIENT_AMBIGUOUS.
+Nenájdený alebo nesprávne klasifikovaný identifikátor vráti 422 RECIPIENT_NOT_FOUND; Connector nevyskúša iný typ potichu.
+Ak firma existuje, ale nemá endpoint v aktívnej sieti, rovnaký kód 422 vráti v nextAction pokyn na overenie registrácie. V sandboxe odporučí inú spravovanú testovaciu firmu z Integrátorského panelu.
+Scope podľa operácie
+Vyžiadajte iba scope potrebné pre konkrétny Connector tok.
+
+documents:send — vytvoriť/odoslať/zrušiť doklad.
+documents:read — zoznam, detail, events a pokročilé artefakty.
+documents:write — acknowledge prijatého dokladu alebo odoslať jeho business odpoveď.
+webhooks:read — načítať konfiguráciu a históriu doručení.
+webhooks:write — nastaviť, odstrániť, rotovať a otestovať webhook.
+Mapper navyše vyžaduje documents:send + firms:manage.
+Events checkpoint, webhook a obnova
+nextCursor uložte až po lokálnom commite spracovaných udalostí a pošlite ho v ďalšom volaní aj keď hasMore=false. Voliteľný webhook pushuje rovnaké dokumentové event položky s menšou latenciou a môže navyše posielať explicitne vybrané lifecycle udalosti; cursor dokumentov nenahrádza. Cursor je nepriehľadný.
+
+Ak checkpoint stratíte alebo server odmietne jeho verziu, začnite bez cursor a deduplikujte podľa event id.
+Acknowledge dokladu je idempotentné, takže recovery replay je bezpečný.
+Acknowledge označí lokálny ERP import; respond odošle business odpoveď protistrane cez Peppol.
+Webhook je globálny pre integrátora; root customerRef určuje firmu každej udalosti.
+Jeden model: customerRef vyberá schválenú firmu, externalId spája doklad s ERP a links ukazujú povolené ďalšie akcie. Normálny Connector tok nepoužíva X-Firm-Id ani sieťové a transportné detaily.
+Kompatibilita: Connector je odporúčaný spravovaný vstup pre nové ERP integrácie. Existujúce Enterprise API a SAPI integrácie, endpointy aj podporované credentials ostávajú funkčné; nasadenie Connectora ich nenúti migrovať. Iba pri Connector volaniach vyberá firmu customerRef a X-Firm-Id sa neposiela.
+Endpointy v tejto sekcii
+POST
+Odoslať business doklad
+/api/v1/connector/documents
+GET
+Zoznam dokladov
+/api/v1/connector/documents
+GET
+Detail business dokladu
+/api/v1/connector/documents/{documentId}
+POST
+Odoslať uložený doklad
+/api/v1/connector/documents/{documentId}/send
+POST
+Zrušiť uložený doklad
+/api/v1/connector/documents/{documentId}/cancel
+POST
+Potvrdiť spracovanie
+/api/v1/connector/documents/{documentId}/acknowledge
+GET
+Connector udalosti
+/api/v1/connector/events
+POST
+Odoslať business odpoveď na faktúru
+/api/v1/connector/documents/{documentId}/respond
+GET
+Načítať Connector webhook
+/api/v1/connector/webhook
+PUT
+Vytvoriť alebo aktualizovať webhook
+/api/v1/connector/webhook
+DELETE
+Odstrániť Connector webhook
+/api/v1/connector/webhook
+POST
+Otočiť podpisový secret
+/api/v1/connector/webhook/rotate-secret
+Zobraziť ďalšie endpointy (6)
+POST
+/api/v1/connector/documents
+Odoslať business doklad
+Odporúčaný Connector endpoint. Pošlete bežný business JSON a príjemcu určíte cez IČO, DIČ alebo IČ DPH. ePošťák overí presnú firmu a použije riadené doručenie. Predvolené delivery=send je explicitný pokyn držiteľa scope documents:send a pokračuje do fyzického odoslania bez ohľadu na autoSendEnabled, ktoré riadi iba automatizované policy-driven zdroje. state=queued po delivery=send znamená prijaté asynchrónne odoslanie; bez send/cancel odkazov nejde o staged doklad čakajúci na manuálny zásah. delivery=stage je jediný create tok, ktorý doklad iba bezpečne uloží a pri novom príkaze vráti send aj cancel odkazy. externalId aj Idempotency-Key sú jedinečné v rámci prideleného Connector mailboxu pre customerRef; rovnaký príkaz sa bezpečne replayne, ale opätovné použitie ktoréhokoľvek identifikátora s iným obsahom vráti 409 IDEMPOTENCY_CONFLICT. Historický replay vráti pôvodný stav a nikdy ho automaticky neodošle. Ak pošlete oba identifikátory, musia označovať ten istý príkaz.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Idempotency-Key	string	REQ	Stabilný retry kľúč. Rovnaký kľúč a payload nikdy neodošle doklad dvakrát.
+Parametre
+Názov	Typ	Povinné	Popis
+customerRef	string	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+externalId	string	REQ	Stabilné ID dokladu vo vašom ERP.
+delivery	string	optional	send doklad odošle, stage ho iba bezpečne uloží. (default: send) (povolené: send, stage)
+type	string	optional	Business typ dokladu. (default: invoice) (povolené: invoice, credit_note, debit_note, correction, prepayment_invoice, self_billing_invoice, self_billing_credit_note)
+number	string	REQ	Číslo dokladu.
+precedingDocumentNumber	string	optional	Povinné číslo pôvodného dokladu pri dobropise.
+recipient	object	REQ	Príjemca s country a aspoň jedným z companyId, taxId alebo vatId.
+recipient.country	string	REQ	Dvojpísmenový kód krajiny.
+recipient.name	string	optional	Obchodné meno príjemcu. Connector ho overí alebo doplní podľa identity firmy.
+recipient.companyId	string	optional	IČO alebo ekvivalent v danej krajine.
+recipient.taxId	string	optional	DIČ alebo lokálne daňové ID.
+recipient.vatId	string	optional	IČ DPH alebo VAT ID.
+recipient.networkId	string	optional	Voliteľná presná sieťová identita, ak ju ERP už pozná. Bežný Connector tok ju nepotrebuje; preferujte firemné alebo daňové ID.
+recipient.address	object	optional	Voliteľná adresa príjemcu, používaná pri tvorbe dokladu a kontrole identity.
+recipient.address.street	string	optional	Ulica a číslo.
+recipient.address.city	string	optional	Mesto alebo obec.
+recipient.address.postalCode	string	optional	PSČ, najviac 32 znakov.
+issueDate	date	optional	Dátum vystavenia YYYY-MM-DD. Od 1. 1. 2027 sa pri odoslaní generovaného dokladu použije deň odovzdania v Europe/Bratislava; surový XML doklad musí už obsahovať tento deň.
+dueDate	date	optional	Dátum splatnosti YYYY-MM-DD.
+taxPointDate	date	optional	Dátum vzniku daňovej povinnosti (Peppol BT-7) vo formáte YYYY-MM-DD.
+deliveryDate	date	optional	Skutočný dátum dodania celého dokladu (Peppol BT-72) vo formáte YYYY-MM-DD.
+documentDiscountPercent	number	optional	Celková zľava dokladu v percentách od 0 do 100. Prenáša sa ako Peppol dokumentová zľava BG-20 a kombinuje sa s prípadnými riadkovými zľavami.
+currency	string	optional	Trojpísmenový kód meny. (default: EUR)
+note	string	optional	Poznámka na doklade, najviac 5 000 znakov.
+iban	string	optional	IBAN pre úhradu.
+paymentMethod	string	optional	Business spôsob úhrady z ERP.
+paymentTerms	string	optional	Text platobných podmienok (Peppol BT-20), najviac 500 znakov.
+variableSymbol	string	optional	Variabilný symbol platby.
+buyerReference	string	optional	Interná referencia kupujúceho na osobu, oddelenie alebo nákladové stredisko (Peppol BT-10), najviac 100 znakov. Doklad musí obsahovať buyerReference alebo orderReference.
+orderReference	string	optional	Číslo nákupnej objednávky (Peppol BT-13), najviac 100 znakov. Doklad musí obsahovať orderReference alebo buyerReference.
+prepaidAmount	number	optional	Už uhradená suma vrátane DPH, minimálne 0.
+lines	array	REQ	Aspoň jedna položka dokladu.
+lines[].description	string	REQ	Popis položky.
+lines[].quantity	number	REQ	Kladné množstvo pre štandardný riadok; záporné pre lineType=advance_deduction. Nula nie je povolená.
+lines[].unit	string	optional	Kód mernej jednotky, napríklad C62.
+lines[].unitPrice	number	REQ	Jednotková cena bez DPH.
+lines[].vatRate	number	REQ	Sadzba DPH v percentách.
+lines[].taxTreatment	string	optional	Business daňový režim; technické kódy doplní ePošťák. (povolené: standard, zero_rated, reverse_charge, exempt, intra_community_supply, export, out_of_scope)
+lines[].taxExemptionReasonCode	string	optional	Kód dôvodu oslobodenia od DPH (Peppol BT-121) z aktuálneho zoznamu CEF VATEX. Kód musí zodpovedať zvolenému taxTreatment a je povolený iba pri oslobodenom alebo nezdaniteľnom režime.
+lines[].taxExemptionReason	string	optional	Text dôvodu oslobodenia od DPH (Peppol BT-120), najviac 1 000 znakov. Povolený iba pri oslobodenom alebo nezdaniteľnom taxTreatment.
+lines[].discount	number	optional	Zľava položky v percentách od 0 do 100.
+lines[].deliveryDate	date	optional	Dátum dodania položky vo formáte YYYY-MM-DD.
+lines[].lineType	string	optional	Typ položky. advance_deduction vyžaduje záporné množstvo a advanceInvoiceReference. (povolené: standard, advance_deduction)
+lines[].advanceInvoiceReference	string	optional	Referencia zálohovej faktúry pre odpočtovú položku.
+lines[].customsTariffCode	string	optional	Colný sadzobník položky.
+lines[].commodityClassificationCode	string	optional	Kód klasifikácie tovaru alebo služby.
+lines[].commodityClassificationListId	string	optional	Identifikátor použitého klasifikačného zoznamu.
+lines[].reverseChargeParagraphLetter	string	optional	Písmeno paragrafu pri prenose daňovej povinnosti.
+lines[].controlStatementType	string	optional	Typ položky kontrolného výkazu.
+lines[].controlStatementQuantity	number	optional	Množstvo pre kontrolný výkaz, minimálne 0.
+lines[].controlStatementUnit	string	optional	Merná jednotka pre kontrolný výkaz.
+prepayments	array	optional	Štruktúrované uhradené preddavky; 1 až 100 položiek.
+prepayments[].advanceInvoiceRef	string	optional	Referencia zálohovej faktúry.
+prepayments[].taxDocumentRef	string	optional	Referencia daňového dokladu k prijatej platbe.
+prepayments[].settlementDate	date	optional	Dátum úhrady vo formáte YYYY-MM-DD.
+prepayments[].amountWithoutVat	number	optional	Uhradená suma bez DPH, minimálne 0.
+prepayments[].vatAmount	number	optional	Suma DPH preddavku, minimálne 0.
+prepayments[].amountWithVat	number	REQ	Uhradená suma vrátane DPH, minimálne 0.
+prepayments[].vatRate	number	optional	Sadzba DPH preddavku od 0 do 100.
+prepayments[].taxTreatment	string	optional	Business daňový režim preddavku. (povolené: standard, zero_rated, reverse_charge, exempt, intra_community_supply, export, out_of_scope)
+attachments	array	optional	Najviac 20 príloh dokladu.
+attachments[].fileName	string	REQ	Názov súboru vrátane prípony.
+attachments[].mimeType	string	REQ	MIME typ súboru, napríklad application/pdf.
+attachments[].content	base64 string	REQ	Obsah súboru zakódovaný v base64.
+attachments[].description	string	optional	Voliteľný popis prílohy, najviac 1 000 znakov.
+Príklady volania
+Odoslať teraz
+Uložiť a odoslať neskôr
+Odoslať teraz
+
+Copy
+curl -X POST https://dev.epostak.sk/api/v1/connector/documents \
+  -H "Authorization: Bearer eyJhbGc..." \
+  -H "Idempotency-Key: erp-acme:invoice:2026-0042" \
+  -H "Content-Type: application/json" \
+  -d '{"customerRef":"erp-acme","externalId":"invoice-2026-0042","type":"invoice","number":"2026-0042","recipient":{"country":"SK","taxId":"2120123456"},"issueDate":"2026-07-14","dueDate":"2026-07-28","taxPointDate":"2026-07-13","deliveryDate":"2026-07-12","documentDiscountPercent":5,"currency":"EUR","paymentTerms":"Splatnosť 14 dní","buyerReference":"ODD-IT","orderReference":"OBJ-1042","lines":[{"description":"Mesačná licencia","quantity":1,"unitPrice":100,"vatRate":23}]}'
+Príklady odpovedí
+201 Doklad bol prijatý do riadeného flow.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","externalId":"invoice-2026-0042","direction":"outbound","type":"invoice","number":"2026-0042","state":"queued","replayed":false,"recipient":{"name":"ODBERATEĽ, s.r.o.","country":"SK","taxId":"2120123456","resolution":"verified"},"links":{"self":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111?customerRef=erp-acme","evidence":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/evidence?customerRef=erp-acme"}}
+201 Staged doklad. Prítomnosť send a cancel odkazov je oprávnenie na ďalšiu akciu.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c222","customerRef":"erp-acme","externalId":"invoice-2026-0043","direction":"outbound","type":"invoice","number":"2026-0043","state":"queued","replayed":false,"recipient":{"name":"ODBERATEĽ, s.r.o.","country":"SK","taxId":"2120123456","resolution":"verified"},"links":{"self":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c222?customerRef=erp-acme","send":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c222/send?customerRef=erp-acme","cancel":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c222/cancel?customerRef=erp-acme"}}
+409 CUSTOMER_NOT_READY, IDEMPOTENCY_CONFLICT alebo RECIPIENT_AMBIGUOUS. Pri retryable=true počkajte podľa Retry-After; pri false opravte konfliktný príkaz alebo identifikátory príjemcu.
+
+Copy
+{"error":{"code":"IDEMPOTENCY_CONFLICT","message":"The idempotency key or external ID was reused with different document content.","retryable":false,"nextAction":"Retry the original document unchanged or use a new idempotency key and external ID.","requestId":"req_01JZ..."}}
+422 Neplatný doklad alebo nenájdený/nepodporovaný príjemca.
+
+Copy
+{"error":{"code":"DOCUMENT_INVALID","message":"lines must contain at least one item","field":"lines","retryable":false,"nextAction":"Correct the indicated document field and retry.","requestId":"req_01JZ..."}}
+429 Rate limit. Počkajte počet sekúnd z hlavičky Retry-After a potom zopakujte rovnaký request s rovnakým Idempotency-Key.
+
+Copy
+{"error":{"code":"DELIVERY_TEMPORARILY_UNAVAILABLE","message":"Too many Connector requests.","retryable":true,"nextAction":"Retry after the Retry-After delay with the same Idempotency-Key.","requestId":"req_01JZ..."}}
+503 Dočasne nedostupné overenie alebo doručenie; bezpečne opakujte rovnaký request.
+
+Copy
+{"error":{"code":"DELIVERY_TEMPORARILY_UNAVAILABLE","message":"The document could not be queued for delivery right now.","retryable":true,"nextAction":"Retry the same request with the same idempotency key later.","requestId":"req_01JZ..."}}
+Odpovede
+200
+Bezpečný replay rovnakého dokladu; replayed=true a nový doklad sa nevytvorí.
+201
+Doklad bol prijatý do riadeného flow.
+201
+Staged doklad. Prítomnosť send a cancel odkazov je oprávnenie na ďalšiu akciu.
+400
+Telo nie je platný JSON. Odpoveď používa rovnaký business error tvar a korelačné requestId.
+401
+Chýbajúci, neplatný alebo expirovaný Connector access token.
+409
+CUSTOMER_NOT_READY, IDEMPOTENCY_CONFLICT alebo RECIPIENT_AMBIGUOUS. Pri retryable=true počkajte podľa Retry-After; pri false opravte konfliktný príkaz alebo identifikátory príjemcu.
+413
+Telo prekračuje limit. Odpoveď používa business kód DOCUMENT_INVALID a korelačné requestId.
+422
+Neplatný doklad alebo nenájdený/nepodporovaný príjemca.
+429
+Rate limit. Počkajte počet sekúnd z hlavičky Retry-After a potom zopakujte rovnaký request s rovnakým Idempotency-Key.
+503
+Dočasne nedostupné overenie alebo doručenie; bezpečne opakujte rovnaký request.
+GET
+/api/v1/connector/documents
+Zoznam dokladov
+Vráti business-only zoznam dokladov jednej schválenej firmy vrátane response=null alebo aktuálnej business odpovede. Consent floor a tenant scope sa aplikujú pred čítaním. Posledná stránka má nextCursor=null; dokumentový cursor nie je polling checkpoint.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+customerRef	string	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+direction	string	optional	Smer dokladu. (povolené: inbound, outbound)
+state	string	optional	Business stav. (povolené: queued, sending, delivered, received, processed, needs_attention, failed, cancelled)
+type	string	optional	Jeden zo štyroch verejných business typov dokladu. (povolené: invoice, credit_note, debit_note, correction, prepayment_invoice, self_billing_invoice, self_billing_credit_note)
+createdAfter	string	optional	Vráti doklady vytvorené po zadanom ISO 8601 date-time.
+cursor	string	optional	Nepriehľadný cursor.
+limit	integer	optional	1 až 100 dokladov. (default: 50)
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/documents?customerRef=erp-acme&direction=inbound&state=received" -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Stránkovaný zoznam business dokladov.
+
+Copy
+{
+  "documents": [
+    {
+      "id": "8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111",
+      "customerRef": "erp-acme",
+      "externalId": null,
+      "direction": "inbound",
+      "type": "invoice",
+      "number": "2026-0088",
+      "state": "received",
+      "currency": "EUR",
+      "amounts": { "withoutTax": 100, "tax": 23, "total": 123, "due": 123 },
+      "sender": { "name": "Dodávateľ, s.r.o.", "country": "SK", "companyId": "12345678", "taxId": "2120123456", "vatId": "SK2120123456" },
+      "recipient": { "name": "Odberateľ, s.r.o.", "country": "SK", "companyId": "87654321", "taxId": "2199999999", "vatId": "SK2199999999" },
+      "issueDate": "2026-07-14",
+      "dueDate": "2026-07-28",
+      "processedAt": null,
+      "processedReference": null,
+      "response": null,
+      "createdAt": "2026-07-14T10:00:00.000Z",
+      "updatedAt": "2026-07-14T10:01:00.000Z",
+      "links": {
+        "self": "/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111?customerRef=erp-acme",
+        "evidence": "/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/evidence?customerRef=erp-acme",
+        "acknowledge": "/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/acknowledge?customerRef=erp-acme"
+      }
+    }
+  ],
+  "nextCursor": "eyJ2IjoxLCJyIjoiMjAyNi0wNy0xNFQxMDowMTowMC4wMDBaIiwiaSI6IjhlNGI4ZjBlLTIxZDMtNGQyYS05YzJiLTI0YTNmOGEwYzExMSJ9",
+  "hasMore": true
+}
+Odpovede
+200
+Stránkovaný zoznam business dokladov.
+GET
+/api/v1/connector/documents/{documentId}
+Detail business dokladu
+Vráti stabilný business tvar a stav dokladu vrátane response=null alebo aktuálnej odoslanej/prijatej business odpovede. Technické údaje sú zámerne oddelené do pokročilých dôkazových a support-packet endpointov. Dokument je viditeľný iba po dátume súhlasu firmy s integrátorom.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+documentId	uuid	REQ	ID dokumentu z odpovede POST /connector/documents, zo zoznamu dokladov alebo z events.
+customerRef	string (query)	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111?customerRef=erp-acme" -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Business detail dokumentu.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","externalId":"invoice-2026-0042","direction":"outbound","type":"invoice","number":"2026-0042","state":"delivered","response":{"status":"accepted","direction":"received","reason":null,"respondedAt":"2026-07-15T10:05:00.000Z"}}
+Odpovede
+200
+Business detail dokumentu.
+404
+Nepriehľadné nenájdené: dokument nie je dostupný alebo customerRef je prázdny, opakovaný či nezhodný.
+POST
+/api/v1/connector/documents/{documentId}/send
+Odoslať uložený doklad
+Odošle doklad vytvorený s delivery=stage. Endpoint volajte iba vtedy, keď detail alebo create odpoveď obsahuje links.send. Request nemá telo. Opakované volanie je bezpečné: dokončené odoslanie vráti 200, prebiehajúce odoslanie 202 so state=sending, ktoré sledujete cez detail alebo events.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+documentId	uuid	REQ	ID staged dokumentu, ktorého links obsahuje send.
+customerRef	string (query)	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/send?customerRef=erp-acme" -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Odoslanie bolo prijaté alebo ide o bezpečné opakovanie dokončeného odoslania.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","externalId":"invoice-2026-0042","direction":"outbound","type":"invoice","number":"2026-0042","state":"queued","replayed":false,"links":{"self":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111?customerRef=erp-acme","evidence":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/evidence?customerRef=erp-acme"}}
+202 Odoslanie prebieha; odpoveď má state=sending a dokument môžete bezpečne pollovať.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","direction":"outbound","type":"invoice","number":"2026-0042","state":"sending","replayed":false,"links":{"self":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111?customerRef=erp-acme"}}
+Odpovede
+200
+Odoslanie bolo prijaté alebo ide o bezpečné opakovanie dokončeného odoslania.
+202
+Odoslanie prebieha; odpoveď má state=sending a dokument môžete bezpečne pollovať.
+409
+Customer momentálne nie je pripravený na odoslanie.
+404
+Nepriehľadné nenájdené pre nedostupný dokument alebo neplatnú väzbu customerRef.
+422
+Doklad nie je dostupný pre túto akciu; obnovte detail a použite iba ponúknuté links.
+503
+Doručenie je dočasne nedostupné; obnovte detail a bezpečne opakujte send.
+POST
+/api/v1/connector/documents/{documentId}/cancel
+Zrušiť uložený doklad
+Zruší staged doklad pred začiatkom odosielania. Endpoint volajte iba vtedy, keď detail alebo create odpoveď obsahuje links.cancel. Request nemá telo a opakované zrušenie je idempotentné.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+documentId	uuid	REQ	ID staged dokumentu, ktorého links obsahuje cancel.
+customerRef	string (query)	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/cancel?customerRef=erp-acme" -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Doklad bol zrušený alebo už bol zrušený skôr; odpoveď vracia canonical business dokument.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","direction":"outbound","type":"invoice","number":"2026-0042","state":"cancelled","replayed":false,"links":{"self":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111?customerRef=erp-acme","evidence":"/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/evidence?customerRef=erp-acme"}}
+Odpovede
+200
+Doklad bol zrušený alebo už bol zrušený skôr; odpoveď vracia canonical business dokument.
+422
+Doklad už nie je možné zrušiť; obnovte detail a použite iba ponúknuté links.
+404
+Nepriehľadné nenájdené pre nedostupný dokument alebo neplatnú väzbu customerRef.
+503
+Zrušenie je dočasne nedostupné; obnovte detail pred ďalším pokusom.
+POST
+/api/v1/connector/documents/{documentId}/acknowledge
+Potvrdiť spracovanie
+Idempotentne zaznamená, že ERP spracovalo prijatý doklad. Je to iba lokálny stav Connectora; neposiela odpoveď odosielateľovi ani nemení sieťový transportný stav.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+documentId	uuid	REQ	ID prijatého dokladu.
+customerRef	string (query)	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+reference	string	REQ	Referencia importu/spracovania vo vašom ERP.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/acknowledge?customerRef=erp-acme" -H "Authorization: Bearer eyJhbGc..." -H "Content-Type: application/json" -d '{"reference":"erp-import-8471"}'
+Príklady odpovedí
+200 Spracovanie bolo zaznamenané alebo už bolo zaznamenané skôr.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","state":"processed","processedAt":"2026-07-14T10:05:00.000Z","reference":"erp-import-8471","idempotent":false}
+413 Telo prekračuje 64 KiB. Odpoveď používa business kód PAYLOAD_TOO_LARGE; pošlite iba krátku ERP referenciu.
+
+Copy
+{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body exceeds the 64 KiB limit.","retryable":false,"nextAction":"Send only the local ERP processing reference.","requestId":"req_connector_01J2YQ5B"}}
+Odpovede
+200
+Spracovanie bolo zaznamenané alebo už bolo zaznamenané skôr.
+404
+Nepriehľadné nenájdené pre nedostupný dokument alebo neplatnú väzbu customerRef.
+413
+Telo prekračuje 64 KiB. Odpoveď používa business kód PAYLOAD_TOO_LARGE; pošlite iba krátku ERP referenciu.
+422
+Doklad nie je prijatý inbound doklad alebo request je neplatný.
+GET
+/api/v1/connector/events
+Connector udalosti
+Business-only udalosti jednej schválenej firmy, určené na pravidelné čítanie: document.queued, document.delivered, document.received, document.processed, document.needs_attention, document.failed a document.cancelled. customerRef je vždy v koreňovej úrovni udalosti a nové klienty routujú podľa neho; voliteľné data.customerRef zostáva iba ako deprecated compatibility alias. Cancelled je samostatný výsledok, nie failed. data.number a data.response sú vždy prítomné, ale môžu byť null. Neprázdna stránka vracia nextCursor aj pri hasMore=false — uložte ho ako polling checkpoint pre budúce eventy. Rovnakú event položku môže Connector voliteľne poslať aj webhookom. Payload neobsahuje transportné identifikátory, Peppol polia ani raw XML.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+customerRef	string	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+cursor	string	optional	Nepriehľadný cursor z predchádzajúcej odpovede `nextCursor`.
+limit	integer	optional	Maximálny počet vrátených udalostí. (default: 100)
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/events?customerRef=erp-acme&limit=100" -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Connector udalosti stránkované cez cursor.
+
+Copy
+{"events":[{"id":"evt_01J2YQ5A","customerRef":"erp-acme","documentId":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","type":"document.cancelled","state":"cancelled","occurredAt":"2026-07-14T10:01:00.000Z","data":{"direction":"outbound","type":"invoice","number":"2026-0042","response":null}}],"nextCursor":"eyJ0cyI6IjIwMjYtMDctMTRUMTA6MDE6MDAuMDAwWiIsImlkIjoiZXZ0XzAxSjJZUTVBIn0","hasMore":false}
+Odpovede
+200
+Connector udalosti stránkované cez cursor.
+401
+Neautorizované volanie.
+403
+Vyžaduje sa API plán alebo prístup nebol povolený.
+POST
+/api/v1/connector/documents/{documentId}/respond
+Odoslať business odpoveď na faktúru
+Odošle odosielateľovi prijatej faktúry business odpoveď cez Peppol Invoice Response, ale ERP pracuje iba so stavmi uvedenými nižšie. Je to odlišné od acknowledge: acknowledge iba lokálne zaznamená úspešný import do ERP, zatiaľ čo respond informuje protistranu. Interný ePošťák Box ani Enterprise endpoint integrátor nevolá. Telo je striktné, najviac 32 KiB; note má najviac 500 znakov. Rovnaký už uložený stav sa bezpečne replayne s idempotent=true.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+documentId	uuid	REQ	ID prijatej faktúry, na ktorú odpovedáte.
+customerRef	string (query)	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+status	string	REQ	Business stav, ktorý sa odošle protistrane. (povolené: received, in_process, under_query, conditionally_accepted, rejected, accepted, paid)
+note	string	optional	Voliteľné vysvetlenie s dĺžkou najviac 500 znakov.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/respond?customerRef=erp-acme" \
+  -H "Authorization: Bearer eyJhbGc..." \
+  -H "Content-Type: application/json" \
+  -d '{"status":"under_query","note":"Prosíme doplniť číslo objednávky."}'
+Príklady odpovedí
+200 Odpoveď bola odoslaná alebo ide o bezpečný replay rovnakého stavu.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","response":{"status":"under_query","direction":"sent","delivery":"sent","respondedAt":"2026-07-15T10:05:00.000Z"},"idempotent":false}
+202 Business odpoveď je bezpečne prijatá a čaká v doručovacej fronte.
+
+Copy
+{"id":"8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111","customerRef":"erp-acme","response":{"status":"accepted","direction":"sent","delivery":"queued","respondedAt":"2026-07-15T10:05:00.000Z"},"idempotent":false}
+Odpovede
+200
+Odpoveď bola odoslaná alebo ide o bezpečný replay rovnakého stavu.
+202
+Business odpoveď je bezpečne prijatá a čaká v doručovacej fronte.
+404
+Prijatý dokument nie je dostupný pre dané customerRef.
+409
+Schválená firma alebo jej Connector mailbox momentálne nie je pripravený.
+413
+Telo prekračuje 32 KiB; pošlite iba status a krátku voliteľnú note.
+422
+Neplatný stav, príliš dlhá note, neznáme pole alebo pokus zmeniť už finálnu odpoveď.
+503
+Doručenie odpovede je dočasne nedostupné; zopakujte rovnaký request neskôr.
+GET
+/api/v1/connector/webhook
+Načítať Connector webhook
+Natívny Connector webhook je jeden pre celý integrátorský účet. Dokumentové udalosti majú rovnaký business tvar ako GET /connector/events; zákaznícke lifecycle udalosti sú webhook-only oznámenia a vyžadujú explicitné prihlásenie. customerRef v koreňovej úrovni určí schválenú firmu; voliteľné data.customerRef je iba deprecated compatibility alias. Payload nikdy neobsahuje migračný kód, identitu konkrétneho používateľa ani Peppol transportné polia. Connector ho podpisuje cez HMAC-SHA256 v X-Webhook-Timestamp a X-Webhook-Signature nad timestamp + '.' + raw body. Deduplikujte podľa stabilného X-Webhook-Event-Id a 2xx vráťte až po bezpečnom prijatí. Pri dočasnej chybe vráťte 503: sieťové chyby a 408, 425, 429, 502, 503, 504 doručujeme najviac 10 pokusmi (1 prvotný + 9 opakovaní); 500 je terminálny. Polling ponechajte ako spoľahlivý checkpoint dokumentov.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/webhook" \
+  -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Vráti webhook=null, ak ešte nie je nastavený, inak bezpečný konfiguračný pohľad bez secretu.
+
+Copy
+{"webhook":{"id":"wh_01JZ...","url":"https://erp.example.com/epostak/events","events":["document.received","document.delivered"],"active":true,"failedAttempts":0,"createdAt":"2026-07-15T09:00:00.000Z","updatedAt":"2026-07-15T09:00:00.000Z"}}
+Odpovede
+200
+Vráti webhook=null, ak ešte nie je nastavený, inak bezpečný konfiguračný pohľad bez secretu.
+401
+Neautorizované.
+403
+Prístup zamietnutý.
+PUT
+/api/v1/connector/webhook
+Vytvoriť alebo aktualizovať webhook
+Idempotentne nastaví jediný webhook integrátora. url musí byť verejný HTTPS endpoint a celé JSON telo môže mať najviac 32 KB. Voliteľné events vyberá zo siedmich dokumentových a ôsmich zákazníckych lifecycle udalostí. Ak ho vynecháte, kvôli spätnej kompatibilite odoberáte iba sedem dokumentových udalostí; lifecycle udalosti treba uviesť explicitne. Pri vytvorení sa secret zobrazí práve raz. Aktualizácia ho nemení — na zmenu použite rotate-secret.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+url	string (HTTPS URL)	REQ	Verejná HTTPS URL webhook receivera.
+events	string[]	optional	Voliteľný filter. Vynechanie znamená iba sedem dokumentových udalostí; zákaznícke lifecycle udalosti vyberte explicitne. (povolené: document.queued, document.delivered, document.received, document.processed, document.needs_attention, document.failed, document.cancelled, customer.active, customer.integration_detachment_scheduled, customer.integration_detachment_cancelled, customer.integration_detached, customer.provider_change_requested, customer.provider_change_cancelled, customer.provider_changed, customer.deactivated)
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X PUT "https://dev.epostak.sk/api/v1/connector/webhook" \
+  -H "Authorization: Bearer eyJhbGc..." \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://erp.example.com/epostak/events","events":["document.received","document.delivered","document.failed","customer.active","customer.provider_change_requested","customer.provider_changed"]}'
+Príklady odpovedí
+200 Existujúca konfigurácia bola aktualizovaná a pôvodný secret zostal platný.
+
+Copy
+{"webhook":{"id":"wh_01JZ...","url":"https://erp.example.com/epostak/events","events":["document.received","document.delivered","document.failed"],"active":true,"failedAttempts":0,"createdAt":"2026-07-15T09:00:00.000Z","updatedAt":"2026-07-15T09:10:00.000Z"}}
+201 Webhook bol vytvorený. secret uložte teraz; neskôr ho už nie je možné zobraziť.
+
+Copy
+{"webhook":{"id":"wh_01JZ...","url":"https://erp.example.com/epostak/events","events":["document.received","document.delivered","document.failed"],"active":true,"failedAttempts":0,"createdAt":"2026-07-15T09:00:00.000Z","updatedAt":"2026-07-15T09:00:00.000Z"},"secret":"7c4a8d09ca3762af61e59520943dc26494f8941b7a8331369f7f16f2e19f6c21"}
+Odpovede
+200
+Existujúca konfigurácia bola aktualizovaná a pôvodný secret zostal platný.
+201
+Webhook bol vytvorený. secret uložte teraz; neskôr ho už nie je možné zobraziť.
+400
+Neplatné JSON telo.
+401
+Neautorizované.
+403
+Prístup zamietnutý.
+413
+Telo presiahlo 32 KB.
+422
+Neplatná URL alebo event filter.
+DELETE
+/api/v1/connector/webhook
+Odstrániť Connector webhook
+Odstráni webhook integrátora a zastaví nové push doručenia. GET /connector/events naďalej funguje a zostáva cestou na reconciliation.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X DELETE "https://dev.epostak.sk/api/v1/connector/webhook" \
+  -H "Authorization: Bearer eyJhbGc..."
+Odpovede
+204
+Webhook bol odstránený.
+401
+Neautorizované.
+403
+Prístup zamietnutý.
+POST
+/api/v1/connector/webhook/rotate-secret
+Otočiť podpisový secret
+Nahradí HMAC signing secret webhooku. Nový secret sa zobrazí práve raz; po úspešnej rotácii ním overujte ďalšie doručenia.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/webhook/rotate-secret" \
+  -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Nový secret zobrazený raz.
+
+Copy
+{"secret":"7c4a8d09ca3762af61e59520943dc26494f8941b7a8331369f7f16f2e19f6c21"}
+Odpovede
+200
+Nový secret zobrazený raz.
+401
+Neautorizované.
+404
+Webhook ešte nie je nastavený.
+POST
+/api/v1/connector/webhook/test
+Otestovať Connector webhook
+Zaradí podpísané testovacie doručenie pre jednu schválenú firmu. customerRef určí firmu a test event má rovnaký business tvar ako produkčné udalosti, navyše test=true.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+customerRef	string	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/webhook/test" \
+  -H "Authorization: Bearer eyJhbGc..." \
+  -H "Content-Type: application/json" \
+  -d '{"customerRef":"erp-acme"}'
+Príklady odpovedí
+202 Test bol zaradený.
+
+Copy
+{"deliveryId":"whd_01JZ...","status":"queued","event":{"id":"evt_test_01JZ...","customerRef":"erp-acme","documentId":"doc_test_01JZ...","type":"document.received","state":"received","occurredAt":"2026-07-15T09:15:00.000Z","data":{"direction":"inbound","type":"invoice","number":"TEST-2026-001"},"test":true}}
+Odpovede
+202
+Test bol zaradený.
+401
+Neautorizované.
+404
+Webhook alebo customerRef nie je dostupné.
+GET
+/api/v1/connector/webhook/deliveries
+História webhook doručení
+Vráti cursor-paged históriu doručení naprieč customerRef hodnotami integrátora. Filtrovať môžete presnú firmu, udalosť, stav, testovacie dáta a najviac 90-dňový interval. Detail doručenia ukáže presné podpísané body, každý pokus, príčinu a bezpečný replay. GET /connector/events zostáva business reconciliation checkpoint.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+cursor	string	optional	Nepriehľadný cursor.
+limit	integer	optional	Počet doručení na stránku. (default: 50)
+status	string	optional	Voliteľný filter stavu doručenia. (povolené: PENDING, SUCCESS, FAILED, RETRYING)
+customerRef	string	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+type	string	optional	Typ business udalosti.
+test	boolean	optional	true iba testy, false iba reálne dáta.
+from / to	date-time	optional	ISO-8601 interval najviac 90 dní.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/webhook/deliveries?customerRef=erp-acme&status=FAILED&test=false&limit=50" \
+  -H "Authorization: Bearer eyJhbGc..."
+Príklady odpovedí
+200 Stránka webhook doručení.
+
+Copy
+{"deliveries":[{"id":"whd_01JZ...","eventId":"evt_01JZ...","customerRef":"erp-acme","type":"document.received","status":"SUCCESS","attempts":1,"responseStatus":204,"lastAttemptAt":"2026-07-15T09:16:00.000Z","nextRetryAt":null,"createdAt":"2026-07-15T09:15:59.000Z"}],"nextCursor":"eyJpZCI6IndoZF8wMUpaLi4uIn0","hasMore":false}
+Odpovede
+200
+Stránka webhook doručení.
+401
+Neautorizované.
+403
+Prístup zamietnutý.
+GET
+/api/v1/connector/webhook/deliveries/{deliveryId}
+Detail doručenia udalosti
+Vráti presné podpísané body, bezpečnú adresu endpointu, zrozumiteľnú príčinu a každý skutočný pokus. Staršia história otvorene uvedie, že podrobné pokusy nemá; nič sa spätne nevymýšľa.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token> · scope webhooks:read
+Parametre
+Názov	Typ	Povinné	Popis
+deliveryId	uuid	REQ	ID doručenia zo zoznamu.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/webhook/deliveries/DELIVERY_ID" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN"
+Odpovede
+200
+Dôkazy a časová os doručenia.
+404
+Udalosť neexistuje alebo už k jej firme nemáte aktuálny prístup.
+POST
+/api/v1/connector/webhook/deliveries/{deliveryId}/replay
+Zopakovať presné doručenie
+Po oprave endpointu vytvorí nové doručenie s novým delivery ID a podpisom, ale zachová pôvodné event ID, customerRef aj presné body. Prijímač preto musí deduplikovať podľa event ID. Úspešné reálne doručenie vyžaduje confirmSuccessfulReplay=true.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token> · scope webhooks:write
+Idempotency-Key	string	REQ	Nový stabilný kľúč jedného zámerného replay kliknutia.
+Parametre
+Názov	Typ	Povinné	Popis
+deliveryId	uuid	REQ	Terminálne doručenie.
+confirmSuccessfulReplay	boolean	optional	Povinné true iba pri úspešnom reálnom doručení. (default: false)
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/webhook/deliveries/DELIVERY_ID/replay" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN" \
+  -H "Idempotency-Key: replay-erp-acme-001" \
+  -H "Content-Type: application/json" -d '{}'
+Odpovede
+202
+Replay je bezpečne uložený; prípadný výpadok fronty sa obnoví automaticky.
+200
+Rovnaký idempotentný replay už bol prijatý.
+409
+Zdroj ešte nie je terminálny, replay už prebieha alebo sa kľúč použil inak.
+POST
+/api/v1/connector/webhook/test-suite
+Spustiť sedem testov prijímača
+Overí úspech, stabilné event ID a body pri replayi, 503, 429/Retry-After, terminálnu 422, timeout a prijatie podpísanej požiadavky cez rovnaký produkčný doručovací kód. Internú deduplikáciu ani samotný výpočet HMAC vo vašom endpoint handleri ePošťák nevidí. Test používa tri pokusy v čase 0, 5 a 30 sekúnd a nemení produkčný circuit breaker.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token> · scope webhooks:write
+Idempotency-Key	string	REQ	Stable diagnostic-run key.
+Parametre
+Názov	Typ	Povinné	Popis
+customerRef	string	REQ	Schválená firma, na ktorej sa overí aktuálny prístup.
+event	string	optional	Obchodný typ testovacej udalosti. (default: document.queued)
+scenarios	array	optional	Voliteľný výber; bez poľa sa spustí všetkých sedem.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST "https://dev.epostak.sk/api/v1/connector/webhook/test-suite" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN" \
+  -H "Idempotency-Key: diagnostics-20260716-01" \
+  -H "Content-Type: application/json" \
+  -d '{"customerRef":"erp-acme"}'
+Odpovede
+202
+Diagnostika bola prijatá.
+409
+Iný test ešte prebieha alebo sa kľúč použil s iným telom.
+429
+Najviac päť nových diagnostík za hodinu.
+GET
+/api/v1/connector/webhook/test-suite/{testRunId}
+Sledovať diagnostický test
+Vráti výsledok každého scenára. Deduplikačný test sa po prvom úspechu zastaví a vyžiada replay dodaného deliveryId s rovnakým event ID.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token> · scope webhooks:read
+Parametre
+Názov	Typ	Povinné	Popis
+testRunId	uuid	REQ	ID prijaté pri štarte.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/webhook/test-suite/TEST_RUN_ID" \
+  -H "Authorization: Bearer $EPOSTAK_ACCESS_TOKEN"
+Odpovede
+200
+RUNNING, ACTION_REQUIRED, COMPLETED alebo EXPIRED.
+Universal Connector · súkromný DEV pilot
+Voliteľná pilotná cesta pre ERP, ktoré chcú odovzdávať svoje existujúce exporty namiesto implementácie kanonického Connector JSON. Stabilný Connector API tok vyššie sa nemení.
+
+Dostupnosť je potvrdená serverom
+Preview sa zobrazí iba explicitne povolenému integrátorovi v DEV a jednotlivé kanály môžu byť zapnuté samostatne. Mimo pilotného allowlistu nové operácie vracajú zámerne neurčité 404. Ich prítomnosť v OpenAPI neznamená produkčnú dostupnosť ani povinnú migráciu existujúcich integrácií.
+
+OpenAPI značka: x-epostak-availability: private-preview.
+Produkčný pilot vyžaduje samostatné schválenie; stabilné /connector/documents a /connector/events pokračujú bez zmeny.
+Jeden cloudový tok, viac spôsobov pripojenia
+Nastavenie ide cez connection → bezpečný test → vzorky a mapovanie → review alebo stage → povolenú automatiku. API, portál, e-mail, SFTP a Bridge sú iba adaptéry nad rovnakým intake, validáciou, auditom a Peppol doručením; dostupné sú iba kanály potvrdené v Cockpite.
+
+Epostak-Connection môže bezpečne určiť firmu, profil a delivery politiku; zdrojový súbor ani AI tieto väzby nemenia.
+AI vytvorí iba kandidáta mapovania. Produkčný replay používa deterministickú, pripnutú a auditovateľnú revíziu.
+Otvoriť Connections Cockpit
+Pozrieť private-preview operácie v OpenAPI
+Bridge pre Windows a macOS
+V Cockpite vyberte ePošťák Bridge a platformu. Tlačidlo na stiahnutie sa zobrazí priamo vedľa pairing kroku iba vtedy, keď je pre pilot publikovaný schválený podpísaný klient. macOS distribúcia navyše vyžaduje Developer ID podpis a notarizáciu; nepodpísaný interný build sa zákazníkom neponúka.
+
+Po stiahnutí vytvorte 15-minútový pairing kód pre konkrétne connection.
+Kontrola neistého dokladu sa robí v cloudovom ePošťák portáli, nie v lokálnom Bridge klientovi.
+Pilotný kontrakt: importujte rovnaký Connector OpenAPI JSON, ale preview operácie generujte alebo volajte iba vtedy, keď váš DEV účet dostal príslušnú capability. Stabilné operácie bez preview značky majú naďalej vlastný release kontrakt.
+Pokročilé (voliteľné)
+Tu nájdete voliteľné PDF vizualizácie, vlastné mapovanie vstupu a technické balíky pre podporu či audit. Bežný send, príjem a polling ich nevyžaduje.
+
+Pokročilé nástroje
+Mapper a dôkazové operácie zostávajú v plnej Enterprise referencii.
+
+Otvoriť Connector Studio — Mapper a Autopilot
+Mapper
+Support packet
+Enterprise referencia
+Enterprise OpenAPI — pokročilý spoločný kontrakt
+GET
+/api/v1/connector/documents/{documentId}/pdf
+Stiahnuť PDF vizualizáciu faktúry
+Stiahne PDF faktúry zobrazené v portáli, ak je k dokladu uložené UBL XML. Ak existuje uložené PDF, vráti ho; inak vytvorí PDF vizualizáciu. Novo vygenerované PDF obsahuje platobný QR kód len pri dostupnom IBAN-e a kladnej sume na úhradu.
+
+Hlavičky
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer JWT získaný z integrátorského sk_int_* kľúča cez POST /api/v1/auth/token. Connector endpointy sú na úrovni integrátora; cieľovú schválenú firmu určujete cez customerRef, ktoré ste si nastavili v Integrátorskom portáli.
+Parametre
+Názov	Typ	Povinné	Popis
+documentId	uuid	REQ	ID dokumentu.
+customerRef	string (query)	REQ	Vaše stabilné customerRef nastavené pre schválenú firmu; v kanonickom Connector toku ho pošlite presne raz.
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/api/v1/connector/documents/8e4b8f0e-21d3-4d2a-9c2b-24a3f8a0c111/pdf?customerRef=erp-acme" -H "Authorization: Bearer eyJhbGc..." --output invoice.pdf
+Odpovede
+200
+PDF súbor (application/pdf).
+404
+Dokument alebo jeho uložené UBL XML nie je dostupné pre dané customerRef.

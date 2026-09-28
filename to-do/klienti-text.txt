@@ -1,0 +1,291 @@
+Od sandboxu po produkciu
+Vyskúšajte verejné demo, overte vlastný DEV onboarding a pripravte produkčný prístup podľa svojho režimu.
+
+Požiadať o produkčný vstup
+Enterprise API
+Connector API
+SAPI
+Iba odosielanie cez partnera
+Riadené sprístupnenie, predvolene vypnuté. Jedna API požiadavka pripraví registráciu firmy aj prepojenie partnera. Príjem zostáva u pôvodného poskytovateľa. Firma nepotrebuje používateľské konto ani dashboard.
+
+1. Partner začne onboarding
+POST /api/v1/onboarding-requests: serviceMode: send_only, relationshipMode: technical_delegation alebo managed_service, customerRef, dic, contactEmail. Vyžaduje neobmedzený partnerský kľúč, firms:manage, Idempotency-Key a povolenie na tento onboarding. technical_delegation platí firma; managed_service platí integrátor cez existujúci aktívny fakturačný účet. E-mail z API nie je dôkaz identity ani príjemca pozvánky. Platný existujúci súhlas s tým istým partnerom a platiteľom sa využije bez novej registrácie.
+
+2. Firma potvrdí jedno prepojenie
+Po autentifikovanom podaní PFS dostane kontakt z PFS odkaz. Pri potvrdenom príjme inde uvidí na jednej obrazovke firmu, konkrétneho partnera, odosielanie, platiteľa a príslušné podmienky. Potvrdiť a prepojiť vytvorí firmu a súhlas. Technická delegácia čaká na schválenie API objednávky; spravovaný integrátor sa aktivuje s platnou podpísanou zmluvou a fakturáciou. Bez požiadavky partnera sa aktivácia neponúka. Príjem ani SMP sa nemenia.
+
+3. Partner vytvorí kľúč
+GET /api/v1/onboarding-requests/{id} vracia stav vlastnej požiadavky. Až active sprístupní firmId a keyCreation. Potom POST /api/v1/integrator/keys s scopedFirmId: firmId a scopes: [documents:send, documents:read] vytvorí kľúč iba pre túto firmu; rodičovský kľúč potrebuje keys:manage aj požadované scopes. Kľúče musia byť prevádzkovo povolené. Kľúč sa nevydáva v onbordingovej odpovedi. Prijímanie dokladov je zakázané. Stav sa zisťuje pollingom.
+
+Správa a hranice
+/auth/send-only-management používa jednorazový kód na kontakt PFS. Firma môže skontrolovať stav, svoju priamu zmluvu a faktúry alebo odvolať oprávnenie. Kľúče spravuje partner; odvolanie deaktivuje jeho kľúče pre túto firmu. Existujúca firma bez platného zhodného súhlasu, konanie v zastúpení, white-label a zmena platiteľa vyžadujú samostatné overenie. Pred zapnutím treba potvrdiť postup PFS a vykonať skutočný DEV test.
+
+Kľúč pre inštaláciu u zákazníka
+Partner môže po zapnutí tejto funkcie vytvoriť sk_int_* obmedzený na jednu oprávnenú firmu. Pri lokálnej inštalácii ERP uložte u zákazníka tento kľúč. Hlavný partnerský kľúč ponechajte na vlastnom serveri.
+
+Súhlas a existujúce oprávnenia
+Najprv musí existovať aktívne oprávnenie partnera voči overenej firme. Kľúč zachováva existujúce účtovanie, platiteľa a dostupné rozhrania. Nenahrádza súhlas, overenie firmy ani jej prevádzkovú pripravenosť. Priame firemné sk_live_* zostávajú v existujúcom postupe.
+
+Vytvorenie cez portál alebo spoločné API
+V správe kľúčov zvoľte Prístup k firmám a konkrétnu firmu. Automatizácia používa GET/POST /api/v1/integrator/keys a DELETE /api/v1/integrator/keys/{keyId} s JWT z hlavného kľúča s keys:manage. POST prijíma name, scopes, ipAllowlist a voliteľné scopedFirmId. Tajomstvo key sa zobrazí iba raz. Aj SAPI klienti používajú tieto Enterprise Core endpointy. Nové hlavné kľúče majú keys:manage v predvolenom výbere; existujúce explicitné oprávnenia sa nerozširujú. Pri vypnutom vydávaní nie je výber firmy dostupný a POST s scopedFirmId vráti FIRM_KEY_ISSUANCE_DISABLED.
+
+Použitie a výmena
+Výmena sk_int_* za JWT sa nemení. Naďalej posielajte požadované X-Firm-Id, Peppol ID alebo customerRef; identifikátor musí označovať povolenú firmu. Obmedzený kľúč nespravuje kľúče, consent ponuky ani celý účet. Limit je päť aktívnych hlavných kľúčov a päť obmedzených kľúčov na firmu u integrátora. Pri výmene vytvorte nový kľúč, nasaďte ho a zrušte starý. Zrušenie kľúča alebo oprávnenia voči firme zablokuje aj vydané JWT. Nový súhlas staré kľúče neobnoví.
+
+1. Začnite v sandboxe
+SAPI si môžete vyskúšať okamžite cez verejné demo firmy. Vlastný integrátorský alebo white-label sandbox schvaľujeme manuálne. Žiadny sandbox nevytvára produkčnú zmluvu, fakturáciu ani oprávnenie konať za reálne firmy.
+
+SAPI bez čakania: použite verejné demo účty
+Na stránke SAPI dokumentácie otvorte sekciu Demo testovacie účty. Firma A a Firma B tam majú verejný client_id, client_secret a Peppol ID. Hodnoty jednej firmy vždy používajte spolu. Získajte Bearer token cez POST https://dev.epostak.sk/sapi/v1/auth/token a podľa pripravených príkladov otestujte odoslanie z Firmy A aj prijatie vo Firme B. Nepotrebujete účet ani aktiváciu od ePošťáka.
+
+Otvoriť verejné SAPI demo údaje
+Postup získania SAPI tokenu
+Štandardný DEV onboarding: napíšte nám
+Ak po verejnom SAPI deme potrebujete vlastné testovacie firmy alebo partnerský sk_int_* prístup, z pracovného e-mailu pošlite žiadosť na info@epostak.sk. Uveďte firmu, požadované rozhranie a stručný účel integrácie.
+
+Požiadať o sandbox
+ePošťák vytvorí štandardný prístup
+Po overení žiadosti operátor manuálne vytvorí integrátorský účet, testovacie firmy a potrebné testovacie prístupy. Samoobslužná registrácia sandboxu nie je podporovaná.
+
+Prihláste sa do integrátorského prostredia
+Testovanie prebieha na dev.epostak.sk/integrator s oddelenými testovacími firmami, kľúčmi a Peppol testovacou sieťou.
+
+Otvoriť testovacie prostredie
+Dokončite integračné testy
+Overte autentifikáciu, oddelenie firiem, odoslanie, príjem, stavové udalosti a odvolanie súhlasu. Sandboxové firmy, súhlasy ani kľúče sa do produkcie neprenášajú.
+
+White-label DEV onboarding: požiadajte o aktiváciu
+Ak už máte aktívny integrátorský prístup v DEV, z pracovného e-mailu napíšte na info@epostak.sk, že chcete aktivovať aj White-label DEV sandbox. Ide o samostatné, výslovné oprávnenie; nevytvára produkčný white-label program ani oprávnenie pre reálne firmy.
+
+Požiadať o White-label DEV sandbox
+Vytvorte samostatný DEV API kľúč
+Po aktivácii si na dev.epostak.sk/integrator vytvorte samostatný sk_int_* kľúč s oprávneniami participants:read, participants:write a podľa potreby participants:migrate. Overtoken nevytvára tento API kľúč: simuluje provider webhook a doručí jednorazový verification_token pre testovacie DIČ.
+
+Overte provider webhook cez Overtoken
+Pošlite z Overtokenu syntetický provider webhook na svoj DEV endpoint. Overte X-PDS-Secret nad presným raw telom a z payloadu prevezmite DIČ, e-mail a verification_token. Token je určený iba pre testovacie SMP a nenahrádza sk_int_* API kľúč.
+
+Registráciu pošlite do ePošťáka, nie priamo do SMP
+Vymeňte DEV sk_int_* za JWT so scope participants:write a zavolajte POST https://dev.epostak.sk/api/v1/white-label/participants/registrations. Pošlite Idempotency-Key, customerRef, DIČ, companyEmail a verificationToken; hlavičku X-Firm-Id neposielajte. ePošťák až potom použije token na zápis do slovenského testovacieho SMP. Odpoveď 201 potvrdzuje SMP registráciu a lokálnu väzbu; následne overte čítanie participanta a odoslanie/príjem. Pri 202 sledujte Location so scope participants:read; nový Idempotency-Key nevytvárajte.
+
+White-label registračný endpoint
+Čo presne overiť v DEV
+Verejné SAPI demo overuje prenos dokumentov. Vlastný sandbox overuje vašu integráciu. Produkčné zmluvné pozvánky a White Label migrácia majú odlišné podmienky.
+
+Štandardný sandbox: test súhlasu
+Použite pridelenú testovaciu firmu a DEV partnerský kľúč s firms:manage a požadovanými documents:* oprávneniami. Zavolajte POST /api/v1/consent-offers pre jej IČO alebo DIČ s relationshipMode=managed_service a rozhraním už povoleným na testovacej väzbe. DEV prijíma aj relationshipMode=technical_delegation po overení jeho oprávnení, ale spracuje ho ako testovací managed_service súhlas; POST aj GET vracajú relationshipMode=managed_service. Tento test nesimuluje účtovanie technickej delegácie ani nepovoľuje nové rozhrania. Otvorte vrátený consentUrl a prihláste sa ako vlastník alebo správca tejto testovacej firmy. Na stránke je označenie DEV bez produkčnej zmluvy a platby. Po prijatí overte GET /api/v1/consent-offers/{offerId}. Tlačidlom Odvolať testovací súhlas overte zablokovanie prístupu; pre opätovné udelenie vytvorte nový odkaz. Firmu ani API kľúč tento postup nevytvára. Existujúci OAuth tester je ďalej dostupný pre test authorization_code + PKCE; v SDK mu nastavte origin=https://dev.epostak.sk.
+
+DEV OAuth tester
+White Label: registrácia a jej výsledok
+Po výslovnej aktivácii White Label DEV použite nový testovací verification_token, syntetické DIČ a stabilný customerRef. Kľúč aj JWT potrebujú participants:write pre registráciu a participants:read pre čítanie výsledku. Uložte id operácie, participantId a firmId. Pri 202 čítajte GET /api/v1/white-label/operations/{operationId}; pri manual_review kontaktujte podporu s id operácie. Po succeeded overte GET /api/v1/white-label/participants/{participantId}. Opakovanie rovnakej registrácie s rovnakým telom a Idempotency-Key môže vrátiť 200; nevytvárajte druhú registráciu. Tento režim nevyžaduje klientsky účet ani OAuth.
+
+White Label zákazník a migrácia
+Po úspešnej registrácii alebo migrácii vytvorte zákazníka cez POST /api/v1/customers s rovnakým customerRef, zhodnými testovacími identifikátormi, relationship=represented a customerAuthorization. Použite samostatný Idempotency-Key a overte GET /api/v1/customers. Vyžaduje výslovne aktivovaný Enterprise White Label sandbox; použije už registrovanú testovaciu firmu. Migráciu zo samostatného testovacieho poskytovateľa overte cez /api/v1/white-label/participants/migrations s jeho migračným kódom. Migračný kód pre odchod získate cez /api/v1/white-label/participants/{participantId}/migration-code so scope participants:migrate. Existujúca lokálna identita sa druhou registráciou ani migráciou nepreberá; interný presun medzi integrátormi a návrat tej istej lokálnej identity nie sú týmto DEV testom podporované.
+
+Praktický test A → B
+S dvoma pridelenými testovacími firmami overte token, preflight, odoslanie A → B, stav dokumentu, prijatie vo firme B a potvrdenie až po lokálnom uložení. Pri Enterprise events/pull najprv vytvorte odber cez POST /api/v1/webhooks (url=null pre pravidelné čítanie). Zopakujte send s rovnakým Idempotency-Key a telom a overte, že nevznikol druhý dokument. V štandardnom sandboxe overte aj odmietnutie prístupu po odvolaní súhlasu. Úspech v portáli doplňte dôkazom zo svojho ERP alebo SDK.
+
+Enterprise API — prvé odoslanie
+2. Vyberte produkčný režim
+API rozhranie neurčuje, kto uzatvára zmluvu a kto platí. Model vyberte ešte pred produkčnou aktiváciou.
+
+Technický partner
+Dodávateľ ERP používa centrálny partnerský prístup, ale každá klientská firma má vlastnú API objednávku a platí svoju spotrebu priamo ePošťáku.
+
+SAPI, Connector alebo Enterprise API
+odvolateľný súhlas každej firmy
+firemný tajný kľúč sa partnerovi neposiela
+Aktivovať technického partnera
+Spravovaný integrátor
+Integrátor spravuje schválené klientské firmy a ich API spotrebu platí ePošťáku súhrnne podľa integrátorskej zmluvy.
+
+SAPI, Connector alebo Enterprise API
+súhlas vlastníka alebo správcu firmy zostáva povinný
+jedna súhrnná fakturácia integrátorovi
+Aktivovať integrátora
+White-label digitálny poštár
+Po samostatnom schválení Finančnou správou vystupuje partner voči klientovi ako digitálny poštár pod vlastnou značkou. ePošťák poskytuje technickú a Peppol infraštruktúru.
+
+klient si vo vPDS volí priamo partnera
+bez klientskeho účtu ePošťák a bez ePošťák OAuth
+partner spracuje provider webhook a registráciu firmy v SMP
+White-label program
+3. Objednajte a aktivujte produkciu
+Úspešné sandboxové testy produkciu neaktivujú automaticky. Produkčná objednávka a produkčné prístupy vznikajú samostatne.
+
+Otvorte produkčnú aktiváciu
+Na /integrator/aktivacia vyberte API pre vlastnú firmu, technického partnera alebo integrátora/white-label podľa toho, kto spravuje klientov a kto platí.
+
+Objednať produkciu
+Vyplňte objednávku
+Doplníte firemnú a fakturačnú identitu, uvediete primárne plánované API rozhranie, obchodný režim, odhad spotreby, API program a prípadný white-label program. Aktívny partnerský režim následne sprístupní SAPI, Connector aj Enterprise API bez zmeny platiteľa.
+
+Podpíšte presný zmluvný balík
+Oprávnená osoba skontroluje pripravenú objednávku, cenník, zmluvu a prílohy a elektronicky odošle podpísanú ponuku. Automatické potvrdenie znamená iba prijatie žiadosti.
+
+ePošťák žiadosť overí a spolupodpíše
+Kaja Solutions overí firmu, podpisujúcu osobu a zvolený režim. Zmluva a produkčné oprávnenie vzniknú až naším spolupodpisom; žiadosť môžeme vrátiť na opravu alebo odmietnuť.
+
+Po spolupodpise dostanú obe strany finálny zmluvný PDF balík a partnerovi sa sprístupní príslušný produkčný portál. V režime integrátora alebo technického partnera si následne v časti API kľúče vytvorí vlastný produkčný sk_int_*. Celý tajný kľúč sa zobrazí iba raz; ePošťák ho automaticky neposiela e-mailom.
+Pri API pre vlastnú firmu ide o firemný produkčný prístup. Pri integrátorovi a technickom partnerovi ide o partnerský prístup; samotný sk_int_* ešte neoprávňuje konať za ľubovoľnú firmu. Ak si klient volí ePošťák, firma potvrdzuje partnerské oprávnenie v ePošťáku. Ak si klient volí schváleného white-label partnera, firma prichádza cez jeho provider webhook a SMP onboarding bez účtu ePošťák.
+Čo preniesť z DEV do PROD
+Prenáša sa implementácia a overené spracovanie chýb. Identity, tajomstvá a oprávnenia vznikajú nanovo v produkcii.
+
+Samostatná produkčná konfigurácia
+SDK base URL pre Enterprise/Connector zmeňte z https://dev.epostak.sk/api/v1 na https://epostak.sk/api/v1. Pre SAPI použite https://epostak.sk/sapi/v1. OAuth origin, redirect URI a webhook URL/secret nastavte osobitne pre produkciu. Použite nový produkčný kľúč a nový JWT; DEV firmId, participantId, súhlasy, verification_token ani testovacie Peppol ID sa neprenášajú. customerRef môžete zachovať ako ERP označenie, ale jeho produkčná väzba musí vzniknúť znova.
+
+Štandardný klient
+Po aktivácii partnera vytvorte pozvánku cez POST /api/v1/consent-offers pre presné IČO/DIČ, režim, rozhranie a scopes. Bezpečne uložte id a consentUrl a odkaz doručte vlastným kanálom. Stav čítajte cez GET /api/v1/consent-offers/{offerId}. accepted potvrdzuje súhlas, nie dokončené API oprávnenie či účtovanie. Firma potrebuje vlastný účet a prijatie vlastníkom alebo správcom; pred odosielaním overte aj pripravenosť firmy v zvolenom rozhraní.
+
+White Label klient
+Vyžaduje samostatné produkčné White Label oprávnenie a pripravený partnerský účet. Klient si zvolí vás; overte vlastný provider webhook FS SR a použite nový produkčný verification_token. Po úspešnej registrácii cez /api/v1/white-label/participants/registrations vytvorte Enterprise zákazníka cez POST /api/v1/customers s relationship=represented, customerAuthorization a vlastným Idempotency-Key. Tento krok nespotrebúva verification_token a nenahrádza SMP registráciu. Použite produkčný firmId z odpovede. Existujúceho participanta preberajte osobitnou migráciou s migračným kódom, nie opakovanou registráciou.
+
+4. Zapojte klienta podľa zvoleného poskytovateľa
+Najprv určte, koho si klient volí vo vPDS ako digitálneho poštára. Štandardný integrátor a white-label poskytovateľ používajú dva rozdielne onboardingové toky.
+
+Klient si volí ePošťák
+Klient si vo vPDS vyberie ePošťák, dokončí registráciu firmy a vytvorí alebo použije svoje konto ePošťák. Partner potom v LIVE dashboarde alebo cez Enterprise Core API pripraví jednorazový odkaz pre presné IČO alebo DIČ a požadované oprávnenia.
+
+vlastník alebo správca firmy sa prihlási a potvrdí rozsah
+partner používa svoj centrálny kľúč iba pre schválenú firmu
+odvolanie prístupu neruší Peppol schránku klienta
+Klient si volí vášho white-label poštára
+Po vašom samostatnom schválení a zaradení do zoznamu poskytovateľov si klient vo vPDS vyberie priamo vašu firmu. Vaša provider vrstva prijme verification_token od FS SR a zavolá osobitné White Label API ePošťáka, ktoré vykoná obmedzený zápis do SMP.
+
+klient si nevytvára konto ePošťák
+nepoužíva sa ePošťák OAuth ani ePošťák pozvánka
+FS webhook secret zostáva u partnera; ePošťák dostane iba verification_token
+na White Label API sa neposiela X-Firm-Id
+Rozhodujúca otázka je: koho si klient zvolil vo vPDS? Ak ePošťák, použije sa konto a samostatné oprávnenie firmy. Ak vášho schváleného white-label poskytovateľa, autorizačným zdrojom je provider výber vo vPDS a následný provider webhook; klient nemá konto ePošťák.
+Automatizácia z ERP: vytvoriť → potvrdiť → overiť
+Rozšírenie ePošťáka pre partnerský onboarding s platným zmluvným oprávnením. V DEV používa rovnaké endpointy pre vlastné pridelené testovacie firmy; technical_delegation sa po overení oprávnení normalizuje na testovací managed_service súhlas a POST aj GET vracajú relationshipMode=managed_service. Existujúca väzba firmy sa nemení; prijatie nevytvára produkčnú zmluvu ani účtovanie. SAPI-SK štandard nemení.
+
+ERP na serveri vymení partnerský kľúč za JWT, vytvorí pozvánku cez POST, bezpečne uloží id a consentUrl a otvorí odkaz oprávnenej osobe. Klient súhlas osobne potvrdí; ERP cez GET sleduje uložené id. Tieto onboardingové operácie sú súčasťou Enterprise Core pod /api/v1; SAPI štandard sa nemení. Použite zmluvne povolené rozhranie a režim. Po accepted ešte overte dokončenie aktivácie. Stiahnuť Enterprise Core API OpenAPI.
+Endpointy v tejto sekcii
+POST
+Vytvorenie pozvánky z ERP
+/api/v1/consent-offers
+GET
+Stav vlastnej pozvánky
+/api/v1/consent-offers/{offerId}
+POST
+/api/v1/consent-offers
+Vytvorenie pozvánky z ERP
+Vyžaduje Bearer JWT získaný z partnerského sk_int_* cez príslušné /auth/token. Firemný kľúč ani prihlásenie v prehliadači nestačí. Volajúci token aj aktuálny kľúč musia mať firms:manage pri každom vytvorení pozvánky bez ohľadu na rozhranie. requestedInterfaces umožní jednu pozvánku pre SAPI, Enterprise API a Connector; pôvodný integrationPath zostáva pre jedno rozhranie. Ak pošlete oba parametre, integrationPath musí byť prvé rozhranie v poradí SAPI, Enterprise API, Connector. Každé požadované rozhranie musí povoľovať tá istá aktuálna partnerská zmluva. Pri technical_delegation alebo pri výbere Enterprise API musí scopes výslovne obsahovať aj firms:manage. Každé požadované oprávnenie musí mať aj token a kľúč; rozsah musí obsahovať aspoň jedno documents:* oprávnenie. Technický partner aj spravovaný integrátor môžu výslovne požiadať o reporting:read na čítanie štatistík dokumentov; nový súhlas firmy musí tento scope obsahovať. Starý súhlas sa vydaním nového kľúča alebo tokenu nerozšíri. Pre SAPI partnera prijíma JWT z existujúceho /sapi/v1/auth/token. Endpoint vytvorí pozvánku, neudeľuje súhlas, neregistruje firmu ani neposiela e-mail. Limit je 30 vytvorení za minútu na kľúč. POST nie je idempotentný: bezpečne uložte id a jednorazový consentUrl; pri neistej odpovedi neopakujte požiadavku naslepo. Odkaz nemožno znovu načítať cez GET.
+
+Parametre
+Názov	Typ	Povinné	Popis
+targetIdentifierType	string	REQ	Typ identifikátora firmy (povolené: ico, dic)
+targetIdentifier	string	REQ	Presné IČO alebo DIČ firmy
+customerReference	string	optional	Vlastná referencia ERP, najviac 120 znakov; nie idempotency key
+integrationPath	string	optional	Pôvodný výber jedného rozhrania; vyžaduje sa, ak chýba requestedInterfaces (povolené: sapi, enterprise_api, connector)
+requestedInterfaces	string[]	optional	Presný zoznam rozhraní pre jednu pozvánku; každé musí povoľovať aktuálna zmluva
+relationshipMode	string	REQ	Zmluvný režim spolupráce (povolené: technical_delegation, managed_service)
+scopes	string[]	REQ	Presný rozsah súhlasu, napr. documents:send
+Príklady volania
+cURL 1
+cURL 2
+cURL 1
+
+Copy
+curl -X POST "https://epostak.sk/api/v1/consent-offers" \
+  -H "Authorization: Bearer $PARTNER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"targetIdentifierType":"dic","targetIdentifier":"2122701339","customerReference":"erp-client-42","integrationPath":"sapi","relationshipMode":"technical_delegation","scopes":["firms:manage","documents:send"]}'
+Odpovede
+201
+Created: id, consentUrl, status=issued, expiresAt, customerReference, integrationPath, requestedInterfaces, relationshipMode, scopes
+400
+VALIDATION_ERROR
+401
+Missing or invalid partner JWT
+403
+PARTNER_NOT_AUTHORIZED / INSUFFICIENT_SCOPE / PARTNER_OFFER_UNAVAILABLE
+413
+PAYLOAD_TOO_LARGE
+429
+Rate limit exceeded
+503
+PARTNER_OFFER_CONFIGURATION_ERROR
+GET
+/api/v1/consent-offers/{offerId}
+Stav vlastnej pozvánky
+Použite uložené id, rovnaký partnerský JWT a rozhranie. Endpoint vracia iba vlastnú pozvánku a znova kontroluje aktuálne oprávnenia. Vracia issued, pending, accepted, revoked, expired alebo superseded (nahradená novšou pozvánkou); výnimočne claimed, nie stav registrácie firmy. accepted znamená prijatý súhlas, nie potvrdenie dokončenia zmluvy, účtovania a aktivácie API. Pred produkčnými volaniami overte oprávnenie cez príslušné rozhranie. Nevracia consentUrl ani tajný token. Nie je to vyhľadávanie firmy podľa IČO/DIČ. Počas otvoreného onboardingu kontrolujte napr. každých 5–10 sekúnd, rešpektujte rate-limit hlavičky a pri ukončení zastavte polling. Limit 60/minútu na kľúč. Prijatie nemá ERP callback.
+
+Parametre
+Názov	Typ	Povinné	Popis
+offerId	uuid	REQ	id z odpovede POST
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://epostak.sk/api/v1/consent-offers/$OFFER_ID" -H "Authorization: Bearer $PARTNER_TOKEN"
+Odpovede
+200
+id, status, expiresAt, customerReference, integrationPath, requestedInterfaces, relationshipMode, scopes, acceptedAt, revokedAt
+404
+Invitation not found or not owned by this partner
+403
+Current scope, interface or relationship does not authorize access
+429
+Rate limit exceeded
+5. Zapíšte white-label participanta do SMP
+Tento tok je dostupný iba aktívnemu White Label sprostredkovateľovi. Nie je to všeobecný SMP proxy: integrátor môže registrovať, migrovať a čítať iba participantov priradených svojmu tenantovi; profily, certifikáty a raw SMP endpointy nemení.
+
+1. Overte provider webhook FS SR
+Overte X-PDS-Secret nad presným raw telom podľa špecifikácie FS SR. Tento secret ePošťák nepozná a nepotrebuje. Z overeného payloadu prevezmite DIČ, company_email a verification_token.
+
+2. Zavolajte registráciu
+Pošlite POST /api/v1/white-label/participants/registrations s JWT z vášho sk_int_* kľúča, scope participants:write a povinným Idempotency-Key. ePošťák token odošle do SMP ako dic_verification_code a v čitateľnej podobe ho neuloží. Ak bola firma predtým potvrdene uvoľnená zo SMP, po úspechu znovu použijeme iba jej interný firemný a právny záznam; staré platformové relácie, odkazy, členstvá a zákaznícke e-maily zostanú zablokované.
+
+Registrácia — parametre a odpovede
+3. Migráciu používajte osobitne
+Ak participant už existuje, SMP konflikt 409 nedokazuje vlastníctvo. Získajte migračný kód od aktuálneho poskytovateľa a použite POST /api/v1/white-label/participants/migrations so scope participants:migrate.
+
+Migrácia — parametre a odpovede
+4. Profil spravuje ePošťák
+Integrátor neposiela endpoint_profile a nemôže meniť SMP profily, certifikáty ani cudzie záznamy. ePošťák vyberie schválený profil podľa prostredia a zoznam vráti iba participantov daného integrátora.
+
+Príklad registrácie:<pre>curl -X POST https://epostak.sk/api/v1/white-label/participants/registrations \
+-H "Authorization: Bearer eyJ..." \
+-H "Idempotency-Key: fs-aktivacia-2020123456-1" \
+-H "Content-Type: application/json" \
+-d '{"customerRef":"klient-001","dic":"2020123456","companyEmail":"fakturacia@klient.sk","verificationToken":"TOKEN_Z_FS_SR"}'</pre>
+Odpoveď 201 znamená, že SMP aj lokálna väzba uspeli. Pri 202 vyhodnoťte relatívnu cestu z hlavičky Location voči verejnej URL požiadavky a neopakujte operáciu s novým Idempotency-Key. Stav manual_review úmyselne blokuje ďalšie prevzatie, kým ePošťák nepotvrdí výsledok SMP.
+6. Sledujte stav onboardingu
+Stavy required, pending, active a revoked nižšie opisujú štandardnú väzbu medzi firmou a technickým alebo spravovaným integrátorom v ePošťáku. White-label poskytovateľ sleduje vlastný provider webhook, SMP registráciu a stav zmeny poskytovateľa.
+
+required
+Firma ešte nie je pripojená alebo potrebuje novú pozvánku pre požadované rozhranie a oprávnenia.
+
+pending
+Pozvánka alebo riadená aktivácia prebieha. Nezačínajte produkčné volania, kým sa stav nezmení na active.
+
+active
+Existuje aktívna, neodvolaná väzba pre požadované rozhranie a rozsah. Samotný súhlas nepotvrdzuje pripravenosť Peppol účastníka, API programu ani fakturácie; pred odoslaním overte tieto podmienky a preflight.
+
+revoked
+Firma súhlas odvolala. Zastavte ďalšie spracovanie a vytvorte novú pozvánku iba vtedy, ak chce firma prístup opäť udeliť.
+
+Stav môžete pri Enterprise API overiť cez GET /api/v1/firms/consent-status. SAPI nemá vlastné rozhranie na správu firiem; ak tento Enterprise endpoint používate pri SAPI onboardingu, SAPI aj Enterprise API musia byť povolené v zmluve aj pozvánke.
+Čo pripraviť pri prechode z DEV do produkcie
+<table><thead><tr><th>Oblasť</th><th>Produkčná príprava</th></tr></thead><tbody><tr><td>Connector</td><td>Rovnaký dokumentový kontrakt; nový host, LIVE kľúč a nové customerRef väzby na skutočné firmy.</td></tr><tr><td>SAPI</td><td>Rovnaký UBL prenos; nový host, LIVE kľúč, skutočné Peppol ID a oprávnenia firmy pre zvolený smer.</td></tr><tr><td>Enterprise</td><td>Rovnaké povolené dokumentové operácie; nový host, LIVE kľúč a firemný kontext. DEV OAuth/PKCE skúška nie je produkčná pozvánka a nezaručuje rovnaký callback tok.</td></tr><tr><td>Zmluva a platiteľ</td><td>Samostatná produkčná žiadosť a prijatie podľa režimu: vlastná firma, integrátor alebo technický partner. Testovanie neurčuje platiteľa.</td></tr><tr><td>Súhlas a aktivácia</td><td>Každá skutočná firma potrebuje príslušné oprávnenie a súhlas. DEV firmy, kľúče a súhlasy sa neprenášajú.</td></tr></tbody></table>
+Bezpečné overenie SAPI pripojenia
+S produkčným SAPI JWT zavolajte GET https://epostak.sk/sapi/v1/auth/token/status s hlavičkou Authorization: Bearer $TOKEN. HTTP 200 a valid: true potvrdzujú platnosť tokenu. Toto čítanie neposiela faktúru ani nepreberá dokumenty a nevyžaduje Enterprise oprávnenie. Je nezávislé od firmy: nepotvrdzuje jej súhlas ani dokončenie aktivácie. Pri HTTP 401 získajte nový token platným produkčným kľúčom; pri 403 skontrolujte oprávnenia, povolené rozhranie a IP pravidlá.
+Stav firmy overte v Partnerskom Dashboarde alebo u operátora. Čakajúca aktivácia musí byť dokončená a odvolaný či chýbajúci súhlas znovu riadne udelený. SAPI dokumentové volania používajú X-Peppol-Participant-Id; odmietnutie 403 samo osebe nerozlišuje čakajúcu aktiváciu od chýbajúcej väzby alebo súhlasu. Neopakujte ich naslepo a nerozširujte oprávnenia len pre kontrolu. Až pri riadnej prevádzke čítajte GET /sapi/v1/document/receive?status=RECEIVED&amp;limit=1 s rozsahom documents:read: 200 s prázdnym documents je platný výsledok, čítanie existujúcich dokumentov však môže evidovať účtované API prijatie.
+7. Použite správny firemný kontext
+SAPI
+Partnerský token doplňte hlavičkou X-Peppol-Participant-Id: 0245:DIČ. Server overí aktívnu väzbu, súhlas a rozsah tokenu.
+
+SAPI dokumentácia
+Enterprise API
+Pri volaní s partnerským sk_int_* určite schválenú firmu hlavičkou X-Firm-Id. Oprávnenia sa vždy orežú rozsahom súhlasu firmy.
+
+Enterprise dokumentácia
+Connector
+Connector používa stabilné customerRef nastavené integrátorom pre schválenú firmu. Na Connector endpointoch neposielajte X-Firm-Id.
+
+Connector dokumentácia
+8. Odvolanie prístupu a ukončenie služby
+Odvolanie súhlasu partnerovi, keď si klient zvolil ePošťák, bezodkladne ukončí jeho technický prístup ku konkrétnej firme. Neruší konto firmy, jej Peppol schránku ani registráciu. Zmena digitálneho poštára je samostatný migračný proces.
+Keď si klient zvolil white-label partnera, deaktivácia alebo zmena poskytovateľa prichádza do jeho provider toku. Partner spracuje uvoľnenie alebo migráciu Peppol účastníka v SMP tak, aby doručovanie pokračovalo do prevzatia novým poskytovateľom. Žiadny účet ePošťák sa neruší, pretože klient ho v tomto režime nemá.

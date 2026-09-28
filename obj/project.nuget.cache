@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "dgSpecHash": "Q6sUN7uUIDE=",
+  "success": true,
+  "projectFilePath": "/home/rugent/public_repo/sapi-sk-proxy/sapi-sk-proxy.csproj",
+  "expectedPackageFiles": [
+    "/home/rugent/.nuget/packages/microsoft.extensions.apidescription.server/10.0.0/microsoft.extensions.apidescription.server.10.0.0.nupkg.sha512",
+    "/home/rugent/.nuget/packages/microsoft.extensions.http/10.0.11/microsoft.extensions.http.10.0.11.nupkg.sha512",
+    "/home/rugent/.nuget/packages/microsoft.openapi/2.7.5/microsoft.openapi.2.7.5.nupkg.sha512",
+    "/home/rugent/.nuget/packages/swashbuckle.aspnetcore/10.2.3/swashbuckle.aspnetcore.10.2.3.nupkg.sha512",
+    "/home/rugent/.nuget/packages/swashbuckle.aspnetcore.swagger/10.2.3/swashbuckle.aspnetcore.swagger.10.2.3.nupkg.sha512",
+    "/home/rugent/.nuget/packages/swashbuckle.aspnetcore.swaggergen/10.2.3/swashbuckle.aspnetcore.swaggergen.10.2.3.nupkg.sha512",
+    "/home/rugent/.nuget/packages/swashbuckle.aspnetcore.swaggerui/10.2.3/swashbuckle.aspnetcore.swaggerui.10.2.3.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1510",
+      "level": "Warning",
+      "message": "PackageReference Microsoft.Extensions.Http will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.",
+      "projectPath": "/home/rugent/public_repo/sapi-sk-proxy/sapi-sk-proxy.csproj",
+      "warningLevel": 1,
+      "filePath": "/home/rugent/public_repo/sapi-sk-proxy/sapi-sk-proxy.csproj",
+      "libraryId": "Microsoft.Extensions.Http",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
+}

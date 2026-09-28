@@ -1,0 +1,796 @@
+SAPI: keď ERP už vytvára hotový UBL 2.1
+Najkratší tok: získajte token, odošlite hotový UBL v SAPI obale a prijaté dokumenty čítajte pollingom. Ak UBL nevytvárate, začnite Connectorom.
+
+Vyberte si integračný tok
+Začnite tam, kde sa práve nachádza váš tím: tokeny, odosielanie, príjem alebo prevádzka.
+
+Začať
+Najkratšia cesta od sandbox credentialov po prvý SAPI token.
+
+Získať SAPI token
+Vymeňte client_id a client_secret za 15-minútový Bearer token.
+Odosielanie
+Ako zabaliť hotový UBL XML do SAPI requestu a bezpečne ho odoslať.
+
+Odoslať UBL dokument
+Pošlite hotový UBL XML s metadátami a idempotency key.
+Príjem
+Ako čítať doručené dokumenty a potvrdiť ich spracovanie.
+
+Prijať a potvrdiť dokumenty
+Načítajte dokumenty a po lokálnom spracovaní zavolajte acknowledge.
+Bezpečnosť a go-live
+Secret handling, oddelené prostredia, tokeny, archív a ownership dát.
+01
+Získať SAPI token
+Secret nikdy neposielajte ako Bearer token priamo; najprv ho vymeňte cez client_credentials a výsledný access_token cacheujte do expirácie. Použiť môžete firemný sk_live_* alebo centrálny sk_int_* technického partnera či spravovaného integrátora. Pri partnerskom tokene vyberte autorizovanú firmu hlavičkou X-Peppol-Participant-Id.
+
+Postup
+01
+Použite vydané sandbox credentialy firmy alebo sk_int_* credential pridelený partnerovi v jeho sandboxe.
+02
+Zavolajte POST /sapi/v1/auth/token s grant_type client_credentials.
+03
+Cacheujte access_token 15 minút a refresh_token 30 dní.
+04
+Pri prvej 401 alebo pred expiráciou zavolajte /auth/renew.
+Endpoint
+POST
+/sapi/v1/auth/token
+Vyskúšať
+Token payload example
+json
+
+Copy
+{
+  "grant_type": "client_credentials",
+  "client_id": "487d008a-b3a5-49d0-be3e-ba45cc9c4ffe",
+  "client_secret": "sk_live_test_5e188b91708ca938e1ee50678b345a3c152b4d4a83d31eac",
+  "scope": "documents:send documents:read"
+}
+Token response
+json
+
+Copy
+{
+  "access_token": "eyJhbGc...",
+  "refresh_token": "rt_...",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "scope": "documents:send documents:read"
+}
+Povinné polia
+Názov	Typ	Povinné	Popis
+grant_type	string	áno	Musí byť client_credentials.
+client_id	string	áno	ID alebo prefix vydaného firemného či integrátorského API kľúča.
+client_secret	string	áno	Celý tajný sk_live_* alebo sk_int_* credential; uložte ho v secret manageri.
+scope	string	nie	Voliteľné zúženie oprávnení, napr. documents:send documents:read.
+Práca so stavmi
+expires_in=900
+Access token platí 15 minút; nemintujte ho pred každým volaním.
+refresh_token
+Refresh token rotuje pri /auth/renew a starý token sa invaliduje.
+401
+Použite renew alebo token endpoint, nie retry rovnakého expirovaného tokenu.
+Chyby
+401 AUTH
+Credentialy nesedia, kľúč je vypnutý alebo demo kľúč používate na produkčnom hoste.
+423 LOCKED
+Opakované neúspešné pokusy sú dočasne obmedzené; platný secret ostáva použiteľný aj pri blokovaní chybných pokusov.
+Ďalšie kroky
+Po získaní tokenu zavolajte /auth/token/status ako health check.
+Pri document endpointoch vždy pridajte X-Peppol-Participant-Id.
+02
+Odoslať hotový UBL cez SAPI
+Toto je plný SAPI tvar requestu: JSON wrapper obsahuje metadata, payload je hotový UBL XML a hlavička X-Peppol-Participant-Id určuje pridelené Peppol ID, v mene ktorého voláte. Ak chcete JSON faktúru, OCR alebo Connector mapping, použite Enterprise API/Connector.
+
+Postup
+01
+V ERP vygenerujte validný Peppol BIS 3.0 UBL dokument.
+02
+Vyplňte metadata podľa UBL: documentId, documentTypeId, processId, senderParticipantId a receiverParticipantId.
+03
+Pridajte Authorization, X-Peppol-Participant-Id a Idempotency-Key.
+04
+Odpoveď 202 ACCEPTED znamená iba prijatie na spracovanie, nikdy nie dôkaz doručenia. Uložte providerDocumentId a konečný transportný stav zistite cez Enterprise GET /api/v1/documents/{id}/status alebo Enterprise webhook.
+Endpoint
+POST
+/sapi/v1/document/send
+Vyskúšať
+SAPI payload example
+Toto je ilustrácia, nie spustiteľný doklad. Payload nahraďte kompletným platným UBL XML. Voliteľný checksum vynechajte alebo vypočítajte SHA-256 z presných bajtov payloadu. Ukážka obsahuje metadata aj UBL fragment, aby bolo jasné, ktoré polia patria do wrapperu a ktoré do samotného XML.
+
+json
+
+Copy
+{
+  "metadata": {
+    "documentId": "INV-2026-001",
+    "documentTypeId": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
+    "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "senderParticipantId": "0245:0000000001",
+    "receiverParticipantId": "0245:0000000002",
+    "creationDateTime": "2026-05-06T10:00:00Z"
+  },
+  "payload": "<Invoice xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2\"><cbc:ID>INV-2026-001</cbc:ID>...</Invoice>",
+  "payloadFormat": "XML",
+  "payloadEncoding": "UTF-8"
+}
+UBL fragment
+xml
+
+Copy
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
+  <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
+  <cbc:ID>INV-2026-001</cbc:ID>
+  <cbc:IssueDate>2026-05-06</cbc:IssueDate>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0245">0000000001</cbc:EndpointID>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0245">0000000002</cbc:EndpointID>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+</Invoice>
+Finálny outbound status cez Enterprise API
+Použite rovnaký Bearer JWT a providerDocumentId zo SAPI odpovede. X-Firm-Id je povinné iba pri centrálnom sk_int_*; pri firemnom sk_live_* ho neposielajte. Token aj firemný súhlas musia obsahovať documents:read. Ak namiesto pollingu vytvárate Enterprise webhook subscription, pridajte webhooks:write.
+
+curl
+
+Copy
+curl https://dev.epostak.sk/api/v1/documents/bec4f875-996f-4794-b42e-8f3b5b2f1ba4/status \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Firm-Id: <UUID_ODOSIELAJUCEJ_FIRMY>"
+Outbound status response
+json
+
+Copy
+{
+  "id": "bec4f875-996f-4794-b42e-8f3b5b2f1ba4",
+  "status": "delivered",
+  "statusHistory": [
+    { "status": "queued", "timestamp": "2026-05-06T10:00:00.000Z" },
+    { "status": "sent", "timestamp": "2026-05-06T10:00:03.000Z" },
+    { "status": "delivered", "timestamp": "2026-05-06T10:00:08.000Z" }
+  ],
+  "deliveredAt": "2026-05-06T10:00:08.000Z",
+  "invoiceResponseStatus": null,
+  "as4MessageId": "msg_peppol_xyz"
+}
+SAPI field contract
+Názov	Typ	Povinné	Popis
+Authorization	header	áno	Bearer access_token z /auth/token.
+X-Peppol-Participant-Id	header	áno	Peppol ID odosielajúcej firmy, napr. 0245:0000000001.
+Idempotency-Key	header	áno	UUID pre bezpečný retry bez duplicitného odoslania.
+metadata.documentId	string	áno	ID faktúry/dokladu z vášho ERP, najviac 255 znakov.
+metadata.documentTypeId	string	áno	Plný Peppol document type URN.
+metadata.processId	string	áno	Peppol process ID pre billing flow.
+payload	string	áno	UBL XML obsah, nie base64.
+payloadFormat	string	áno	Musí byť XML.
+response.providerDocumentId	string	áno	ePošťák ID outbound dokumentu. Uložte ho a použite ako {id} v Enterprise status endpointe.
+Práca so stavmi
+202 ACCEPTED
+Request prešiel vstupnou validáciou a bol prijatý na spracovanie. Nejde o potvrdenie doručenia Access Pointom príjemcu.
+delivered
+Enterprise lifecycle potvrdil transport k Access Pointu príjemcu; deliveredAt obsahuje čas potvrdenia.
+sent
+Dokument bol odoslaný do Peppol transportu, ale ešte nejde o finálne potvrdenie doručenia príjemcovmu Access Pointu.
+rejected / send_failed / delivery_failed / validation_failed
+Terminálna chyba alebo odmietnutie; detail hľadajte v statusHistory a validationResult.
+409 CONFLICT
+Idempotency-Key sa ešte spracováva alebo bol použitý s iným telom requestu; documentId už existuje; alebo rovnaký UBL XML payload už bol odoslaný pod iným kľúčom či documentId (SAPI-DOC-024).
+409 SAPI-DOC-024
+Duplicitný UBL XML, nie chyba dátumu. details[].issue obsahuje duplicate_payload; nový kľúč ani metadata.documentId nevytvorí nový doklad. Zistite stav pôvodného dokladu: duplicita sama nepotvrdzuje doručenie. Pri nejasnom výsledku pôvodnej požiadavky opakujte rovnaké telo s rovnakým Idempotency-Key. Nesúlad dátumu vystavenia pri odovzdaní má samostatný kód 422 SAPI-DOC-027 a issue handoff_date_mismatch; uplatňuje sa od 1. 1. 2027.
+422 BUSINESS
+Registrovaný príjemca neprijíma daný document type. Pri neregistrovanom príjemcovi reálny send pokračuje ako trvalý pokus a výsledná transportná chyba zostane v lifecycle dokladu.
+Chyby
+400 VALIDATION
+Chýba wrapper field, documentId presahuje 255 znakov alebo payloadFormat nie je XML.
+422 VALIDATION
+metadata.documentTypeId nepasuje k UBL root elementu, napríklad Invoice vs CreditNote.
+422 SAPI-DOC-025
+EndpointID dodávateľa alebo odberateľa v UBL sa nezhoduje s metadata.senderParticipantId alebo metadata.receiverParticipantId.
+422 SAPI-DOC-027 / 028
+Od 1. 1. 2027 musí UBL IssueDate zodpovedať dňu odovzdania v Europe/Bratislava a tento deň nesmie prekročiť zákonnú lehotu vystavenia.
+422 SAPI-DOC-029
+Ťarchopis (InvoiceTypeCode 383) musí obsahovať číslo pôvodnej faktúry v BillingReference/InvoiceDocumentReference/ID (BT-25).
+422 SAPI-DOC-042
+V produkčnej sieti nemôže byť príjemca (receiverParticipantId) ten istý účastník ako odosielateľ. V testovacej sieti je to povolené.
+503 TEMPORARY
+Opakujte s rovnakým Idempotency-Key a exponenciálnym backoffom.
+Ďalšie kroky
+Pre self-billing zachovajte správne party role priamo v UBL; SAPI XML nemení.
+ID z /document/send je odosielateľský outbound záznam. Prijímateľ si pre detail a acknowledge berie samostatné documentId z odpovede /document/receive.
+Enterprise webhook subscription vytvorená pre odosielajúcu firmu pokrýva aj SAPI dokumenty. Na vytvorenie alebo zmenu subscription je potrebné webhooks:write. Použite document.sent, document.delivered, document.delivery_failed, document.mls_received, document.rejected a document.response_received; staršie udalosti spred aktivácie sa spätne nedopĺňajú. MLS a Invoice Response sú oddelené udalosti.
+invoiceResponseStatus je obchodná odpoveď príjemcu (napr. AP alebo RE), nie dôkaz transportného doručenia.
+Ak chcete aby ePošťák skladal UBL z JSON-u, použite Enterprise API alebo Connector.
+03
+Prijať a potvrdiť dokumenty
+SAPI príjem je polling flow. Každé volanie je scoped cez X-Peppol-Participant-Id; server overí aktívne priradenie vybratej schránky k integrátorovi a požadovaný scope tokenu.
+
+Postup
+01
+Volajte GET /document/receive?status=RECEIVED&limit=100 s Peppol ID prijímateľa.
+02
+Zoznam je stránkovaný od najstarších nespracovaných dokumentov; ak príde nextPageToken, pokračujte ďalšou stránkou.
+03
+Pre každý documentId stiahnite detail a payload.
+04
+Spracujte UBL vo vlastnom systéme.
+05
+Po úspešnom spracovaní zavolajte acknowledge, aby sa dokument nevracal ako nový.
+Endpoint
+GET
+/sapi/v1/document/receive
+Vyskúšať
+List response
+json
+
+Copy
+{
+  "documents": [
+    {
+      "documentId": "48b703c6-6fbb-4cfa-90e3-736b1d6fa2ec",
+      "senderParticipantId": "iso6523-actorid-upis::0245:0000000001",
+      "receiverParticipantId": "iso6523-actorid-upis::0245:0000000002",
+      "documentTypeId": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##...",
+      "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "creationDateTime": "2026-05-06T10:00:00.000Z"
+    }
+  ],
+  "nextPageToken": "opaque-page-token"
+}
+Acknowledge response
+json
+
+Copy
+{
+  "documentId": "48b703c6-6fbb-4cfa-90e3-736b1d6fa2ec",
+  "status": "ACKNOWLEDGED",
+  "acknowledgedDateTime": "2026-05-06T10:05:00.000Z"
+}
+Povinné polia
+Názov	Typ	Povinné	Popis
+X-Peppol-Participant-Id	header	áno	Peppol ID schránky, ktorú čítate.
+status	query	nie	RECEIVED pre nové dokumenty, ACKNOWLEDGED pre už potvrdené.
+pageToken	query	nie	Použite pri stránkovaní väčších objemov.
+documentId	path	áno	documentId z odpovede /document/receive.
+Práca so stavmi
+RECEIVED
+Dokument čaká na spracovanie vo vašom systéme.
+ACKNOWLEDGED
+Dokument ste potvrdili a nebude sa vracať medzi novými.
+nextPageToken
+Ak nie je null, pokračujte ďalšou stránkou.
+Chyby
+403 FORBIDDEN
+Token nepatrí Peppol ID v hlavičke.
+404 NOT_FOUND
+documentId neexistuje alebo nepatrí tejto firme.
+Ďalšie kroky
+Acknowledge volajte až po úspešnom uložení dokumentu vo vašom systéme.
+Nepárujte príjem podľa providerDocumentId zo send odpovede; prijímateľská strana používa documentId z odpovede /document/receive.
+Ak potrebujete push namiesto pollingu, použite Enterprise webhooky.
+04
+SAPI bezpečnosť a go-live
+Security sekcia má byť v dokumentácii, ale v správnej vrstve detailu: používateľ potrebuje vedieť, čo má chrániť a čo sa uchováva; interné kľúče, bucket názvy, presné infra routy a operátorské runbooky sem nepatria.
+
+Postup
+01
+Pred go-live oddeľte dev a produkčné credentialy.
+02
+Uložte client_secret mimo kódu a logov.
+03
+Cachujte access_token iba po dobu TTL a revokujte ho pri incidente.
+04
+Uložte si vlastnú kópiu dokladu; ePošťák drží AS4 obálky v WORM archíve ako AP infraštruktúru.
+Endpoint
+GET
+/sapi/v1/auth/token/status
+Vyskúšať
+SAPI security contract
+json
+
+Copy
+{
+  "environmentIsolation": "dev credentials never work on live hosts",
+  "tokenTtlSeconds": 900,
+  "refreshTokenTtlDays": 30,
+  "participantBoundary": "X-Peppol-Participant-Id must match token permissions",
+  "payloadTransport": "UBL XML over HTTPS",
+  "archive": "complete AS4 envelopes retained for 12 months; minimal transport evidence for 10 years",
+  "doNotPublish": [
+    "client_secret",
+    "private keys",
+    "internal bucket names",
+    "operator runbooks"
+  ]
+}
+SAPI security contract
+Názov	Typ	Povinné	Popis
+client_secret	secret	áno	Nikdy neposielať do frontendu, do logov ani do support screenshotov.
+access_token	JWT	áno	Krátkodobý Bearer token; revokovateľný a obnoviteľný.
+X-Peppol-Participant-Id	header	áno	Tenant boundary pre SAPI dokumentové volania.
+AS4 envelope archive	retention	nie	Kompletné AS4 obálky uchovávame 12 mesiacov; samostatný minimálny transportný dôkaz bez obsahu faktúry 10 rokov.
+document ownership	legal	nie	Vlastníkom a zákonným archivárom daňového dokladu ostáva vystaviteľ/príjemca.
+Práca so stavmi
+DEV
+Sandbox credentialy fungujú iba na dev hoste.
+LIVE
+Produkčné credentialy vydávame po schválenom go-live.
+WORM
+AS4 obálky sú infraštruktúrny dôkaz doručenia, nie náhrada vašej účtovnej evidencie.
+Chyby
+credential leak
+Okamžite revokujte tokeny a vymeňte secret.
+wrong host
+Demo secret na produkčnom hoste zámerne vráti Invalid client credentials.
+Ďalšie kroky
+Do verejnej dokumentácie dávame bezpečnostný kontrakt a očakávania, nie operačné internals.
+Na enterprise procurement pridajte samostatný bezpečnostný balík: DPA, cieľ dostupnosti, incident contacts, IP allowlist podľa dohody.
+Demo testovacie účty
+Prostredia sú oddelené. DEV/test: tieto verejné demo kľúče fungujú na https://dev.epostak.sk/sapi/v1. Hodnoty jednej demo firmy vždy používajte spolu: demo client_id/client_secret a jej Peppol ID tvoria jeden pár. Ak máte vlastný sandbox v /integrator, nepoužívajte s ním demo ID 0245:0000000001/0000000002; do X-Peppol-Participant-Id aj metadata.senderParticipantId vložte vlastné pridelené ID z /integrator/firms. LIVE/produkcia: vlastné produkčné kľúče používajte na https://epostak.sk/sapi/v1. Demo kľúče na LIVE hoste zámerne vrátia Invalid client credentials.
+
+Firma A - odosielateľ
+0245:0000000001
+client_id
+487d008a-b3a5-49d0-be3e-ba45cc9c4ffe
+
+Copy
+client_secret
+sk_live_••••••••••••••••1eac
+
+
+Copy
+Použite na test odoslania faktúry. V hlavičke X-Peppol-Participant-Id, v metadata.senderParticipantId.
+
+Firma B - prijímateľ
+0245:0000000002
+client_id
+b6649c59-2f9d-4ae2-a750-af257c455478
+
+Copy
+client_secret
+sk_live_••••••••••••••••6733
+
+
+Copy
+Použite na test prijatia. Token mintnite vlastnými credentialmi B, request pošlite s X-Peppol-Participant-Id: 0245:0000000002.
+
+Onboarding klienta
+Čo je SAPI a ako napojiť prvého klienta cez ePošťák - od jeho registrácie u Finančnej správy až po prvý dokument.
+
+SAPI-SK 1.0 je otvorený štandard, na ktorom sa zhodli slovenskí Peppol Access Point operátori, aby integrátorov nezaháknuli na jeden konkrétny back-end. Jedna integrácia, ľubovoľný AP - keď to raz urobíte pre jedného poskytovateľa, rovnaké volania fungujú aj proti hocikomu inému kto SAPI implementuje. Špecifikáciu nájdete na sapi-sk.sk.
+Zjednodušené rozhranie pre firmy a ich ERP. SAPI poskytuje minimálny set 8 endpointov - autentifikáciu (token / renew / revoke / status) a doručovanie dokumentov (send / list / detail / acknowledge). Samotné SAPI nemá firma-management, outbound status endpoint ani webhook endpointy. Pošlete UBL XML, dostanete UBL XML, hotovo. ePošťák vie nad tým istým SAPI dokumentom sprístupniť outbound lifecycle cez Enterprise API. Ak váš ERP vie generovať UBL Peppol BIS 3.0 faktúru, technická integrácia je otázka 1-2 dní.
+Potrebujete viac? Pre outbound status a webhooky nad dokumentmi odoslanými cez SAPI, OCR rozpoznávanie PDF/skenov, JSON režim, hromadné operácie alebo správu viacerých klientskych firiem používajte Enterprise API a jeho samostatný Enterprise OpenAPI JSON. SAPI zostáva čistý kompatibilný profil s 8 štandardnými endpointmi.
+Obchodný model je nezávislý od API rozhrania a má tri režimy. Priamy klient podpíše vlastnú API objednávku, platí vlastnú spotrebu a používa sk_live_*. Dodávateľ ERP nepotrebuje platenú integrátorskú aktiváciu: ako technický partner podpíše zmluvu o technickom partnerstve a bez poplatku za samotné partnerské oprávnenie používa centrálny sk_int_*. Každá koncová firma však naďalej podpíše vlastnú API objednávku, platí Kaja Solutions vlastnú spotrebu a udelí partnerovi konkrétny odvolateľný súhlas; firemný tajný kľúč sa partnerovi neposiela. V spravovanom režime podpisuje integrátorskú zmluvu a súhrnne platí integrátor. Technický partner aj spravovaný integrátor môžu cez jeden sk_int_* používať SAPI, Enterprise API aj Connector, ktorý firmu vyberá cez customerRef. Produkčná aktivácia je zatiaľ manuálne schvaľovaný krok.
+Krok 1: Overte firmu a zvoľte smer. Každá produkčná firma má u nás vlastný overený účet, Peppol ID 0245:DIČ, API oprávnenie a platiteľa. API môže používať iba na odosielanie, iba na príjem alebo oboma smermi. Pri režime iba odosielanie používame ePošťáka ako odosielajúci Access Point a Peppol ID nemusí byť zaregistrované na našom SMP účte; nastavenie príjmu u iného poskytovateľa tým nemeníme. Pre príjem cez ePošťáka musí byť firma priradená k našej prijímajúcej službe a jej Peppol ID publikované cez náš SMP. Detail výberu prijímajúceho poskytovateľa je v článku Ako si zvoliť digitálneho poštára.
+Krok 2: Sandbox a produkčné prístupy. Pre bezplatný sandbox pošlite presný e-mail pre prístup na info@epostak.sk; operátor manuálne pripraví účet a dve syntetické testovacie firmy A a B. Vlastný API kľúč si vytvoríte v portáli. Firma, účel integrácie a IČO sú voliteľné. Sandbox nevytvára produkčnú viazanosť. Produkciu schvaľuje Kaja Solutions. Priamy klient prijme vlastný zmluvný balík API a po spolupodpise spravuje sk_live_* vo firemnom konte. Technický partner najprv podpíše partnerskú zmluvu; po jej spolupodpise spravuje centrálny sk_int_* a v partnerskom konte vytvára chránené odkazy na súhlas. Každá firma sama prijme svoj API zmluvný balík a účtovanie. Spravovaný integrátor podpisuje integrátorskú zmluvu a platí súhrnne.
+Pozvánky z ERP. Chránený odkaz vytvoríte cez POST /api/v1/consent-offers v Enterprise Core; stav sledujte cez GET /api/v1/consent-offers/{offerId}. Použite existujúci partnerský JWT z /sapi/v1/auth/token. Tieto onboardingové operácie nevyžadujú nesúvisiace oprávnenie na Enterprise doklady a nesprístupňujú ostatné Enterprise operácie. SAPI štandard zostáva bez zmeny. Firma súhlas sama potvrdí a accepted ešte nepotvrdzuje dokončenú aktiváciu. Postup a príklady.
+Krok 3: Implementujte 8 endpointov. Vymeňte client credentials za JWT cez POST /sapi/v1/auth/token, cachujte access_token, posielajte UBL Peppol BIS 3.0 cez POST /sapi/v1/document/send s hlavičkou X-Peppol-Participant-Id identifikujúcou firmu, kontrolujte príjmy cez GET /sapi/v1/document/receive a potvrdzujte spracované dokumenty cez POST /sapi/v1/document/receive/{id}/acknowledge. Detailne v sekcii Authentication a Documents nižšie.
+Pred produkciou si všetko overte na sandbox integrátor účte a testovacích firmách vydaných v dev portáli (Firma A / Firma B nižšie). Krok-za-krokom sprievodca aj s code snippetmi je v článku Ako integrovať digitálneho poštára do vášho ERP.
+Autentifikácia
+OAuth 2.0 client_credentials flow. Vymeňte existujúci client_id + secret za JWT a používajte ho ako Bearer token. SAPI podporuje firemné sk_live_* aj centrálne sk_int_* technického partnera alebo spravovaného integrátora.
+
+Životnosť tokenov. access_token platí 15 minút (expires_in: 900), refresh_token 30 dní. Cachujte access_token v pamäti - nevolajte /auth/token pred každým requestom (rate-limit + ~100 ms latencia navyše). Pri prvej 401 alebo proaktívne ~1 minútu pred expiráciou zavolajte /auth/renew.
+Refresh token rotation. /auth/renew vždy vráti nový pár - starý refresh_token sa okamžite invaliduje. Replay (opätovné použitie už raz spotrebovaného refresh tokenu) vráti 401.
+Autorizácia participanta. Pri partnerskom tokene hlavička X-Peppol-Participant-Id vyberá firmu pre požiadavku. Server vždy overí aktívne priradenie, neodvolaný súhlas firmy, platné produkčné oprávnenie technického partnera alebo spravovaného integrátora a požadovaný rozsah v tokene.
+Jeden centrálny kľúč pre viac sandbox participantov. Pri integrátorskom sk_int_* používate jeden client_id a client_secret pre všetky pridelené testovacie firmy; pre druhý participant nepotrebujete druhú sadu credentials. Konkrétnu firmu vyberá každý SAPI request cez X-Peppol-Participant-Id. Ak s tým istým JWT voláte Enterprise endpoint, firmu vyberte jej UUID cez X-Firm-Id. Firemný sk_live_* je naopak viazaný iba na jednu firmu.
+Smerové oprávnenia. Režim iba odosielanie vydá kľúč so scope documents:send. Režim iba príjem používa documents:read documents:write, aby integrácia vedela dokument načítať a potvrdiť jeho prevzatie. Obojsmerný režim obsahuje všetky tri scopes. Enterprise status endpoint vyžaduje documents:read, preto samotný send-only scope na jeho volanie nestačí. Pri partnerskom sk_int_* sa rovnaké obmedzenie vynucuje aj cez odvolateľný súhlas konkrétnej firmy.
+API nie je bezplatná webová schránka. Bezplatný príjem vo webovom rozhraní nevydáva API credentials. Každá firma s produkčným API má samostatné aktívne API oprávnenie a platiteľa; účtuje sa jej skutočný počet odoslaných a prijatých dokumentov cez API podľa zmluvy a cenníka.
+Endpointy v tejto sekcii
+POST
+Získať token
+/sapi/v1/auth/token
+GET
+Stav tokenu
+/sapi/v1/auth/token/status
+POST
+Obnoviť token
+/sapi/v1/auth/renew
+POST
+Zrušiť token
+/sapi/v1/auth/revoke
+POST
+/sapi/v1/auth/token
+Získať token
+OAuth 2.0 client_credentials grant. Vymeňte client_id + client_secret (sk_live_* alebo existujúci integrátorský sk_int_*) za krátkodobý JWT access_token (15 min) a long-lived refresh_token (30 dní). Existujúci SAPI klienti ani ich endpointy sa nemenia. Token, client_id, client_secret a X-Peppol-Participant-Id musia patriť k tomu istému sandboxu: vlastné credentialy nikdy nekombinujte so spoločnými demo Peppol ID 0245:0000000001/0000000002. Vlastné Peppol ID nájdete v /integrator/firms. Token cachujte v pamäti a nevytvárajte ho nanovo pri každom requeste.
+
+Parametre
+Názov	Typ	Povinné	Popis
+client_id	string	REQ	UUID prideľený pri registrácii
+client_secret	string	REQ	sk_live_* alebo existujúci sk_int_* tajný kľúč
+grant_type	string	REQ	Musí byť client_credentials
+scope	string	optional	Voliteľný subset povolených scope-ov, oddelený medzerami
+Príklady volania
+cURL
+Node.js
+Python
+cURL
+
+Copy
+curl -X POST https://dev.epostak.sk/sapi/v1/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "487d008a-b3a5-49d0-be3e-ba45cc9c4ffe",
+    "client_secret": "sk_live_test_5e188b91708ca938e1ee50678b345a3c152b4d4a83d31eac",
+    "grant_type": "client_credentials"
+  }'
+Príklady odpovedí
+200 OK
+
+Copy
+{
+  "access_token": "eyJhbGc...",
+  "refresh_token": "rt_...",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "scope": "documents:send documents:read"
+}
+Odpovede
+200
+OK
+400
+Invalid grant_type
+401
+Invalid credentials
+403
+IP not allowed
+423
+Account locked (5 fails / 10 min)
+GET
+/sapi/v1/auth/token/status
+Stav tokenu
+Skontroluje či je access_token ešte platný, kedy expiruje, a či ho treba obnoviť. issued_at, expires_at a refresh_recommended_at sú ISO 8601 časy v UTC (končia na Z), nie lokálny čas Europe/Bratislava. Pole should_refresh prejde na true ~3 minúty pred expiráciou - vtedy zavolajte /auth/renew.
+
+Parametre
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token>
+Príklady volania
+cURL
+cURL
+
+Copy
+curl https://dev.epostak.sk/sapi/v1/auth/token/status \
+  -H "Authorization: Bearer $TOKEN"
+Príklady odpovedí
+200 OK
+
+Copy
+{
+  "valid": true,
+  "token_type": "access",
+  "client_id": "487d008a-b3a5-49d0-be3e-ba45cc9c4ffe",
+  "firm_id": "b1022d80-5016-4dad-a8d2-53685cab1701",
+  "key_type": "sk_live",
+  "scope": "documents:send documents:read",
+  "issued_at": "2026-05-06T10:00:00.000Z",
+  "expires_at": "2026-05-06T10:15:00.000Z",
+  "expires_in_seconds": 720,
+  "should_refresh": false,
+  "refresh_recommended_at": "2026-05-06T10:12:00.000Z"
+}
+Odpovede
+200
+OK
+401
+Invalid token
+POST
+/sapi/v1/auth/renew
+Obnoviť token
+Vymeňte refresh_token za nový pár (token rotation). Starý refresh_token sa okamžite invaliduje - opätovné použitie vráti 401 (replay protection).
+
+Parametre
+Názov	Typ	Povinné	Popis
+grant_type	string	REQ	Musí byť refresh_token
+refresh_token	string	REQ	Platný refresh token rt_...
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST https://dev.epostak.sk/sapi/v1/auth/renew \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"refresh_token","refresh_token":"rt_..."}'
+Príklady odpovedí
+200 Nový pár tokenov
+
+Copy
+{
+  "access_token": "eyJhbGc...",
+  "refresh_token": "rt_...",
+  "token_type": "Bearer",
+  "expires_in": 900
+}
+Odpovede
+200
+Nový pár tokenov
+401
+Invalid or replayed refresh_token
+POST
+/sapi/v1/auth/revoke
+Zrušiť token
+Idempotentne zruší prístup access alebo refresh tokenu. Pri access tokene sa jeho jti pridá do Redis blocklistu na zvyšok TTL; pri refresh tokene sa zmaže server-side stav. Vždy 200 (idempotent).
+
+Parametre
+Názov	Typ	Povinné	Popis
+token	string	REQ	JWT alebo rt_... token
+token_type_hint	string	optional	Voliteľne: "access_token" | "refresh_token"
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST https://dev.epostak.sk/sapi/v1/auth/revoke \
+  -H "Content-Type: application/json" \
+  -d '{"token":"rt_..."}'
+Odpovede
+200
+Revoked (or already revoked)
+Dokumenty
+Odosielanie a prijímanie Peppol dokumentov ako UBL XML.
+
+UBL XML in, UBL XML out. SAPI je transport-only - vy posielate hotový UBL Peppol BIS 3.0 dokument, my ho doručíme cez AS4 a vrátime UBL od protistrany. Validáciu schemou a schematronom robíme na našej strane (UBL 2.1 XSD + EN 16931 + Peppol BIS 3.0 schematrons), ale formát musí prísť od vás.
+X-Peppol-Participant-Id header. Posielate alebo prijímate vždy v mene konkrétneho Peppol ID. Hlavička X-Peppol-Participant-Id: 0245:DIČ vyberá firmu; server následne overí jej aktívne priradenie, neodvolaný súhlas a rozsah tokenu. Jeden partnerský credential tak môže obsluhovať iba firmy, ktoré ho výslovne autorizovali, bez zmeny SAPI endpointov.
+Idempotency-Key. Pri /document/send je povinné poslať Idempotency-Key: &lt;UUID&gt; - opakovanie po sieťovej chybe s rovnakým UUID vráti uloženú odpoveď, po prijatí zvyčajne 202, namiesto duplicitného odoslania.
+Oprava a retry. Pri validačnej chybe 422 opravte UBL a použite nový Idempotency-Key; rovnaké metadata.documentId môžete zachovať, pretože neplatný payload sa neuloží ani neúčtuje. Pri retryable 503 opakujte nezmenený request s rovnakým kľúčom a exponenciálnym backoffom. Nový účtovný doklad vystavujte iba z obchodného dôvodu, nie kvôli technickej chybe SAPI.
+Outbound lifecycle po odpovedi 202. SAPI-SK 1.0 nemá samostatný outbound status endpoint. ePošťák však ukladá SAPI dokument do rovnakého lifecycle modelu: providerDocumentId zo send odpovede použite ako {id} v Enterprise GET /api/v1/documents/{id}/status alebo GET /api/v1/documents/{id}/events. Endpointy vyžadujú scope documents:read; pri centrálnom sk_int_* pridajte X-Firm-Id odosielajúcej firmy. document.mls_received rozlišuje AP/confirmed, AB/forwarded_unconfirmed a RE/rejected; AB nepotvrdzuje doručenie na C4. document.response_received je samostatná obchodná Invoice Response príjemcu. Alternatívou k pollingu sú Enterprise webhooky document.sent, document.delivered, document.delivery_failed, document.mls_received, document.rejected a document.response_received. Vytvorenie alebo zmena subscription vyžaduje scope webhooks:write; subscription zachytáva iba nové udalosti po aktivácii.
+Endpointy v tejto sekcii
+POST
+Odoslať dokument
+/sapi/v1/document/send
+GET
+Zoznam prijatých
+/sapi/v1/document/receive
+GET
+Detail prijatého dokumentu
+/sapi/v1/document/receive/{documentId}
+POST
+Potvrdiť prijatie
+/sapi/v1/document/receive/{documentId}/acknowledge
+POST
+/sapi/v1/document/send
+Odoslať dokument
+Odošle dokument cez Peppol sieť (UBL XML). UBL validujeme pred uložením, účtovaním a vytvorením dokladu. Neplatný payload opravte a odošlite s novým Idempotency-Key; rovnaké metadata.documentId môžete zachovať. Pred odoslaním overíme cez SMP, že je príjemca v sieti - ak nie, vraciame 422. Idempotency-Key (UUID) je povinný; opakovanie s rovnakým kľúčom a telom vráti uloženú odpoveď. Rovnaký platný UBL XML payload pod novým kľúčom a novým documentId odmietneme ako 409 SAPI-DOC-024. Odpoveď 202 ACCEPTED znamená iba prijatie na spracovanie, nie potvrdené doručenie. Uložte providerDocumentId: je to ePošťák ID dokumentu, ktoré môžete pri aktívnom Enterprise prístupe a scope documents:read použiť ako {id} v GET /api/v1/documents/{id}/status.
+
+Parametre
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token>
+X-Peppol-Participant-Id	string	REQ	Peppol ID odosielateľa, napr. 0245:0000000001
+Idempotency-Key	string	REQ	UUID - opakovaný request s rovnakým telom vráti uloženú odpoveď
+metadata	object	REQ	{ documentId, documentTypeId, processId, senderParticipantId, receiverParticipantId, creationDateTime }
+payload	string	REQ	UBL XML obsah faktúry
+payloadFormat	string	REQ	Musí byť "XML"
+payloadEncoding	string	optional	Voliteľné, default "UTF-8"
+checksum	string	optional	Voliteľný SHA-256 hex digest payloadu
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST https://dev.epostak.sk/sapi/v1/document/send \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "X-Peppol-Participant-Id: 0245:0000000001" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {
+      "documentId": "INV-2026-001",
+      "documentTypeId": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
+      "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "senderParticipantId": "0245:0000000001",
+      "receiverParticipantId": "0245:0000000002",
+      "creationDateTime": "2026-05-06T10:00:00Z"
+    },
+    "payload": "<Invoice xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2\">...</Invoice>",
+    "payloadFormat": "XML"
+  }'
+Príklady odpovedí
+202 ACCEPTED - prijaté na spracovanie, nie potvrdené doručenie. providerDocumentId je ePošťák ID pre následné GET /api/v1/documents/{id}/status cez Enterprise API.
+
+Copy
+{
+  "providerDocumentId": "bec4f875-996f-4794-b42e-8f3b5b2f1ba4",
+  "status": "ACCEPTED",
+  "receivedAt": "2026-05-06T10:00:00.000Z",
+  "timestamp": "2026-05-06T10:00:00.000Z"
+}
+Odpovede
+202
+ACCEPTED - prijaté na spracovanie, nie potvrdené doručenie. providerDocumentId je ePošťák ID pre následné GET /api/v1/documents/{id}/status cez Enterprise API.
+400
+Invalid request
+401
+Invalid token
+403
+No permission for this firm
+409
+Idempotency key in-flight/mismatch (SAPI-PROC-002/003), duplicate documentId (SAPI-DOC-018), or duplicate UBL XML payload (SAPI-DOC-024)
+422
+Invalid UBL/Peppol document or unsupported recipient (SAPI-DOC-015), or unregistered recipient (SAPI-DOC-014)
+503
+Validation or recipient lookup temporarily unavailable (SAPI-DOC-012); retry the unchanged request with the same Idempotency-Key
+GET
+/sapi/v1/document/receive
+Zoznam prijatých
+Vráti zoznam dokumentov, ktoré dorazili na váš Peppol ID. Na čítanie nových dokladov volajte status=RECEIVED. Zoznam je stránkovaný od najstarších nespracovaných dokumentov; pri väčších objemoch pokračujte cez pageToken.
+
+Parametre
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token>
+X-Peppol-Participant-Id	string	REQ	Peppol ID prijímateľa, napr. 0245:0000000002
+limit	integer	optional	1-100, default 20
+status	string	optional	RECEIVED pre nové doklady | ACKNOWLEDGED pre už potvrdené
+pageToken	string	optional	Token na ďalšiu stránku
+Príklady volania
+cURL
+cURL
+
+Copy
+curl "https://dev.epostak.sk/sapi/v1/document/receive?status=RECEIVED&limit=100" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Peppol-Participant-Id: 0245:0000000002"
+Príklady odpovedí
+200 OK
+
+Copy
+{
+  "documents": [
+    {
+      "documentId": "48b703c6-6fbb-4cfa-90e3-736b1d6fa2ec",
+      "documentTypeId": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1",
+      "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      "senderParticipantId": "iso6523-actorid-upis::0245:0000000001",
+      "receiverParticipantId": "iso6523-actorid-upis::0245:0000000002",
+      "creationDateTime": "2026-05-06T10:00:00.000Z"
+    }
+  ]
+}
+Odpovede
+200
+OK
+401
+Invalid token
+403
+No permission
+GET
+/sapi/v1/document/receive/{documentId}
+Detail prijatého dokumentu
+Vráti plný UBL XML payload prijatého dokumentu vrátane metadát.
+
+Parametre
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token>
+X-Peppol-Participant-Id	string	REQ	Peppol ID príjemcu, napr. 0245:0000000001
+documentId	string	REQ	documentId z odpovede /document/receive
+Príklady volania
+cURL
+cURL
+
+Copy
+curl https://dev.epostak.sk/sapi/v1/document/receive/{documentId} \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Peppol-Participant-Id: 0245:0000000002"
+Príklady odpovedí
+200 OK
+
+Copy
+{
+  "metadata": { "documentId": "48b703c6-6fbb-4cfa-90e3-736b1d6fa2ec", "documentTypeId": "...", "processId": "...", "senderParticipantId": "...", "receiverParticipantId": "...", "creationDateTime": "..." },
+  "payload": "<Invoice xmlns=...>...</Invoice>",
+  "payloadFormat": "XML"
+}
+Odpovede
+200
+OK
+401
+Invalid token
+404
+Document not found
+POST
+/sapi/v1/document/receive/{documentId}/acknowledge
+Potvrdiť prijatie
+Lokálne označí prijatý dokument ako spracovaný - prejde zo stavu RECEIVED do ACKNOWLEDGED. Po potvrdení sa už nevracia v zozname so status=RECEIVED. Toto acknowledge nie je transportné potvrdenie pre odosielateľa a nemení jeho outbound delivery status.
+
+Parametre
+Názov	Typ	Povinné	Popis
+Authorization	string	REQ	Bearer <access_token>
+X-Peppol-Participant-Id	string	REQ	Peppol ID príjemcu, napr. 0245:0000000001
+documentId	string	REQ	documentId z odpovede /document/receive
+Príklady volania
+cURL
+cURL
+
+Copy
+curl -X POST https://dev.epostak.sk/sapi/v1/document/receive/{documentId}/acknowledge \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Peppol-Participant-Id: 0245:0000000002"
+Príklady odpovedí
+200 Acknowledged
+
+Copy
+{
+  "documentId": "48b703c6-6fbb-4cfa-90e3-736b1d6fa2ec",
+  "status": "ACKNOWLEDGED",
+  "acknowledgedDateTime": "2026-05-06T10:05:00.000Z"
+}
+Odpovede
+200
+Acknowledged
+401
+Invalid token
+404
+Document not found
+Referencia
+Chybové kódy, rate limity, uchovávanie dát.
+
+Cenník
+Transparentné ceny bez skrytých poplatkov.
+
+Sandbox
+Testovacie prostredie pre integráciu (Firma A / Firma B vydané v dev portáli).
+
+Objem	Cena
+Neobmedzene	zadarmo
+Odoslané
+Cena za dokument odoslaný cez Peppol cez POST /document/send.
+
+Objem	Cena
+1 – 1 000	0,10 €
+1 001 – 2 000	0,08 €
+2 001 – 5 000	0,06 €
+5 001 – 20 000	0,05 €
+20 001+	individuálne
+Prijaté
+Cena za dokument prijatý cez Peppol a sprístupnený cez GET /document/receive.
+
+Objem	Cena
+1 – 1 000	0,08 €
+1 001 – 2 000	0,07 €
+2 001 – 5 000	0,06 €
+5 001 – 20 000	0,05 €
+20 001+	individuálne
+Ceny sú bez DPH. Platí sa len za dokumenty skutočne doručené cez Peppol - ak SMP príjemcu nenájde alebo doručenie zlyhá, neúčtujeme. Sandbox je neobmedzený a zadarmo.
+
+Rate limity
+Limitácia požiadaviek na API kľúč.
+
+Pravidlá
+Štandardné endpointy
+200 / 60 s
+POST /document/send
+150 / 60 s
+Hlavičky odpovede (HTTP 429)
+X-RateLimit-Limit
+X-RateLimit-Remaining
+X-RateLimit-Reset
+Retry-After
+Hlavičky sa vracajú len v HTTP 429 odpovediach. Odporúčame exponenciálny backoff.
+
+Chybové kódy
+Chyby sa vracajú vo formáte {"error":{"code":"...","message":"...","requestId":"..."}}. Kódy označené ako retryable je bezpečné opakovať s exponenciálnym backoffom.
+
+Status	Kód	Popis
+400	VALIDATION	Neplatný request - chýbajúce alebo zlé pole
+401	AUTH	Neplatný alebo expirovaný token
+403	FORBIDDEN	Token je platný, ale X-Peppol-Participant-Id nepatrí tomuto integrátorovi alebo chýba požadovaný scope. Použite Peppol ID pridelené v /integrator/firms; spoločné demo ID fungujú iba s príslušnými demo credentialmi.
+404	NOT_FOUND	Dokument neexistuje alebo nepatrí volajúcej firme
+409	CONFLICTretryable	Idempotency key sa práve spracováva (in-flight collision)
+422	VALIDATION	UBL metadata nesedia so samotným XML dokumentom
+422	BUSINESS	Príjemca nie je v Peppol sieti, alebo SMP neakceptuje doctype
+423	LOCKED	Účet zablokovaný (5 zlých prihlásení / 10 min)
+429	RATE_LIMITEDretryable	Prekročený rate limit
+503	TEMPORARYretryable	Dočasná nedostupnosť - opakujte s exponenciálnym backoffom
+Uchovávanie dát
+Archív AS4 a dôkazov doručenia
+Kompletné AS4 obálky uchovávame v nemennom archíve 12 mesiacov. Samostatný minimálny transportný dôkaz bez obsahu faktúry uchovávame 10 rokov. Historické obálky uložené so staršou desaťročnou lehotou zostávajú pod pôvodným zámkom. Ide o infraštruktúrnu retenciu nezávislú od plánu firmy.
+
+Vlastník dokumentov
+Zákonná povinnosť uchovávať daňové doklady 10 rokov (zákon 431/2002 §35) je na vystaviteľovi/príjemcovi faktúry - vy zostávate vlastníkom dokumentov. WORM archív AS4 obálok slúži ako infraštruktúrny dôkaz doručenia, nie ako náhrada vašej účtovnej archivácie.

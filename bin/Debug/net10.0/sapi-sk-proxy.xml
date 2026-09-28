@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>sapi-sk-proxy</name>
+    </assembly>
+    <members>
+        <member name="M:SapiSkProxy.Controllers.AuthController.GetToken(SapiSkProxy.Models.Auth.TokenRequest)">
+            <summary>Obtain access and refresh tokens via OAuth 2.0 client_credentials grant.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.AuthController.GetTokenStatus">
+            <summary>Check the status of your current access token.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.AuthController.RenewToken(SapiSkProxy.Controllers.RenewTokenRequest)">
+            <summary>Renew tokens using a refresh token.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.AuthController.RevokeToken(SapiSkProxy.Controllers.RevokeTokenRequest)">
+            <summary>Revoke a refresh token.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.SendDocument(SapiSkProxy.Models.Documents.SendDocumentRequest)">
+            <summary>Submit a single electronic business document for processing and delivery via Peppol network.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.ListReceivedDocuments(System.String,System.Int32,System.String)">
+            <summary>Retrieve a cursor-paginated list of documents received via Peppol network.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.GetReceivedDocument(System.String)">
+            <summary>Retrieve the full details and content of a specific received document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.AcknowledgeDocument(System.String)">
+            <summary>Acknowledge document receipt. This operation is idempotent.</summary>
+        </member>
+        <member name="P:SapiSkProxy.Options.SapiSkOptions.RefreshAheadSeconds">
+            <summary>
+            How many seconds before expiry to proactively refresh the token. Default 60s.
+            </summary>
+        </member>
+        <member name="T:Program">
+            <summary>
+            Auto-generated public partial Program class for top-level statement apps.
+            </summary>
+        </member>
+    </members>
+</doc>

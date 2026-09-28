@@ -1,0 +1,6 @@
+@sapi_sk_proxy_HostAddress = http://localhost:5041
+
+GET {{sapi_sk_proxy_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
