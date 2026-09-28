@@ -704,53 +704,6 @@ public class EnterpriseController : ControllerBase
         });
     }
 
-    // ── Reporting / Audit / Account ─────────────────────────────
-
-    /// <summary>Aggregated document statistics.</summary>
-    [HttpGet("reporting/statistics")]
-    public IActionResult Statistics()
-    {
-        return Ok(new
-        {
-            period = new { from = DateTime.UtcNow.AddDays(-30).Date.ToString("yyyy-MM-dd"), to = DateTime.UtcNow.Date.ToString("yyyy-MM-dd") },
-            sent = new { total = 1248, invoices = 1191, creditNotes = 57, delivered = 1230, pending = 18 },
-            received = new { total = 863, invoices = 812, creditNotes = 51 },
-            byMonth = new object[]
-            {
-                new { month = "2026-07", sent = 320, received = 214 },
-                new { month = "2026-08", sent = 412, received = 305 },
-                new { month = "2026-09", sent = 516, received = 344 }
-            }
-        });
-    }
-
-    /// <summary>Security / authorization audit feed.</summary>
-    [HttpGet("audit")]
-    public IActionResult Audit([FromQuery] int limit = 50)
-    {
-        var items = new List<object>
-        {
-            new { id = MockStore.NewId(), at = DateTime.UtcNow.AddMinutes(-12).ToString("o"), actor = "api:demo_swagger_client", action = "DOCUMENT_SENT", ip = "185.14.2.10", details = new { documentId = "2026-0009" } },
-            new { id = MockStore.NewId(), at = DateTime.UtcNow.AddHours(-2).ToString("o"), actor = "api:sk_int_demo", action = "TOKEN_ISSUED", ip = "185.14.2.11", details = new { grant = "client_credentials" } },
-            new { id = MockStore.NewId(), at = DateTime.UtcNow.AddDays(-1).ToString("o"), actor = "web:ops", action = "CONSENT_GRANTED", ip = "213.81.199.1", details = new { dic = "2122701339" } }
-        };
-        return Ok(new { items, nextCursor = "eyJhdSI6ImN1c..." });
-    }
-
-    /// <summary>Account info (firm, plan, metering).</summary>
-    [HttpGet("account")]
-    public IActionResult Account()
-    {
-        var firm = _store.Firms.Values.First();
-        return Ok(new
-        {
-            firm = new { id = firm.Id, name = firm.Name, peppolId = firm.PeppolId, dic = firm.Dic, ico = firm.Ico },
-            plan = new { id = "business", name = "Business", maxDocumentsPerMonth = 5000, usedThisMonth = 1248, features = new[] { "api", "webhooks", "box", "payload-assistant" } },
-            meter = new { sent = 1248, received = 863, creditsRemaining = 3752 },
-            createdAt = firm.CreatedAt
-        });
-    }
-
     // ── Helpers ─────────────────────────────────────────────────
 
     private DocumentRecord FirstDoc() => _store.Documents.Values.First();

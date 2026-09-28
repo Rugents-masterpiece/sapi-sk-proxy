@@ -22,35 +22,65 @@ builder.Services.AddHttpClient("SapiSkUpstream", client =>
 });
 
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<MockStore>();
 
 // ── Controllers ────────────────────────────────────────────────
 builder.Services.AddControllers();
 
-// ── Swagger ────────────────────────────────────────────────────
+// ── Swagger – 4 categories ─────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo
+    var baseDescription =
+        "Proxy server API — štyri kategórie: SAPI (priamy upstream), Connector (business JSON), " +
+        "Enterprise (advanced core) a Klienti (riadenie klientov / firiem / súhlasov).";
+
+    c.SwaggerDoc("sapi", new Microsoft.OpenApi.OpenApiInfo
     {
-        Title = "SAPI-SK Proxy",
+        Title = "SAPI — Access Point Interface",
         Version = "v1",
-        Description = "REST API proxy pre SAPI-SK (Standardised Access Point Interface – Slovakia).\n\n" +
-                      "Tento proxy smeruje požiadavky na SAPI-SK upstream API a poskytuje Swagger UI pre interaktívne testovanie.\n\n" +
-                      "**Prihlásenie používateľa:**\n" +
-                      "- Client ID: `demo_swagger_client`\n" +
-                      "- Client Secret: `demo_secret_swagger_12345`\n" +
-                      "- Grant Type: `client_credentials`\n" +
-                      "- Token endpoint: `POST /sapi/auth/token`\n\n" +
-                      "**Ako použiť:**\n" +
-                      "1. Zavolajte `POST /sapi/auth/token` s Client ID, Client Secret a grant type.\n" +
-                      "2. Skopírujte získaný access token.\n" +
-                      "3. Kliknite na `Authorize` a vložte access token.\n" +
-                      "4. Používajte dokumentové endpointy s headerom `X-Peppol-Participant-Id`",
-        Contact = new Microsoft.OpenApi.OpenApiContact
+        Description = "Priamy proxy na upstream SAPI-SK (ePošťák). Autentizácia OAuth 2.0 client_credentials.\n\n" +
+                      "**Demo:** `POST /sapi/v1/auth/token` → `access_token` (15 min) + `refresh_token`.\n\n" +
+                      "Prihlásenie: Client ID `demo_swagger_client`, Client Secret `demo_secret_swagger_12345`.",
+        Contact = new Microsoft.OpenApi.OpenApiContact { Name = "SAPI-SK Proxy", Url = new Uri("https://sapi.patjo.uk") }
+    });
+
+    c.SwaggerDoc("connector", new Microsoft.OpenApi.OpenApiInfo
+    {
+        Title = "Connector API (business JSON)",
+        Version = "v1",
+        Description = baseDescription,
+        Contact = new Microsoft.OpenApi.OpenApiContact { Name = "SAPI-SK Proxy", Url = new Uri("https://sapi.patjo.uk") }
+    });
+
+    c.SwaggerDoc("enterprise", new Microsoft.OpenApi.OpenApiInfo
+    {
+        Title = "Enterprise API Core",
+        Version = "v1",
+        Description = baseDescription,
+        Contact = new Microsoft.OpenApi.OpenApiContact { Name = "SAPI-SK Proxy", Url = new Uri("https://sapi.patjo.uk") }
+    });
+
+    c.SwaggerDoc("klienti", new Microsoft.OpenApi.OpenApiInfo
+    {
+        Title = "Klienti — správa klientov a firiem",
+        Version = "v1",
+        Description = baseDescription,
+        Contact = new Microsoft.OpenApi.OpenApiContact { Name = "SAPI-SK Proxy", Url = new Uri("https://sapi.patjo.uk") }
+    });
+
+    // Group filter — SAPI = Auth/Docs controllers, mock categories by controller class name
+    c.DocInclusionPredicate((docName, apiDesc) =>
+    {
+        var ctrl = (apiDesc.ActionDescriptor as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor)?.ControllerName ?? "";
+        return docName switch
         {
-            Name = "Slovak OpenPeppol Community",
-            Url = new Uri("https://www.sapi-sk.sk")
-        }
+            "sapi" => ctrl == "Auth" || ctrl == "Document",
+            "connector" => ctrl == "Connector",
+            "enterprise" => ctrl == "Enterprise",
+            "klienti" => ctrl == "Klienti",
+            _ => true
+        };
     });
 
     // Security scheme – Bearer JWT
@@ -59,10 +89,9 @@ builder.Services.AddSwaggerGen(c =>
         Type = Microsoft.OpenApi.SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        Description = "JWT access token z /auth/token alebo /auth/renew"
+        Description = "JWT access token z /sapi/v1/auth/token"
     });
 
-    // Security requirement using the 2.x API
     var secRef = new Microsoft.OpenApi.OpenApiSecuritySchemeReference("bearerAuth", null, null);
     var secReq = new Microsoft.OpenApi.OpenApiSecurityRequirement();
     secReq.Add(secRef, new List<string>());
@@ -76,7 +105,6 @@ builder.Services.AddSwaggerGen(c =>
 
     c.UseInlineDefinitionsForEnums();
 
-    // Custom document filter for headers
     c.DocumentFilter<AddSecurityHeadersDocumentFilter>();
 });
 
@@ -88,20 +116,25 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "SAPI-SK Proxy v1");
+        c.SwaggerEndpoint("/swagger/sapi/swagger.json", "SAPI — Access Point Interface v1");
+        c.SwaggerEndpoint("/swagger/connector/swagger.json", "Connector API v1");
+        c.SwaggerEndpoint("/swagger/enterprise/swagger.json", "Enterprise API Core v1");
+        c.SwaggerEndpoint("/swagger/klienti/swagger.json", "Klienti — správa klientov v1");
         c.RoutePrefix = "docs";
-        c.DocumentTitle = "SAPI-SK Proxy – Swagger UI";
+        c.DocumentTitle = "SAPI-SK Proxy — Swagger UI (4 kategórie)";
     });
 
-    // Default route → redirect to Swagger UI
     app.MapGet("/", () => Results.Redirect("/docs"));
 }
+
+// Serve raw OpenAPI JSON files (for external docs tooling)
+app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
 // ── Health check ───────────────────────────────────────────────
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow.ToString("o") }));
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow.ToString("o"), categories = new[] { "sapi", "connector", "enterprise", "klienti" } }));
 
 app.Run();

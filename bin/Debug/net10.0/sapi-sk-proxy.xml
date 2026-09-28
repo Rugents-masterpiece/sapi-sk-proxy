@@ -16,6 +16,87 @@
         <member name="M:SapiSkProxy.Controllers.AuthController.RevokeToken(SapiSkProxy.Controllers.RevokeTokenRequest)">
             <summary>Revoke a refresh token.</summary>
         </member>
+        <member name="T:SapiSkProxy.Controllers.ConnectorController">
+            <summary>
+            Connector API — business JSON documents, inbox, webhook, diagnostics.
+            Mock-backed with generated data; paths per ePošťák Connector OpenAPI contract.
+            </summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.ListDocuments(System.String,System.Int32,System.String)">
+            <summary>List business documents (customerRef required).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.DocumentDetail(System.String,System.String)">
+            <summary>Detail of a business document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.CreateDocument(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create (stage) a business document from JSON.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.SendDocument(System.String)">
+            <summary>Send a staged business document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.CancelDocument(System.String)">
+            <summary>Cancel a staged document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.AcknowledgeDocument(System.String,System.String)">
+            <summary>Acknowledge processing of an inbound document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.RespondDocument(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Send a business response (accept/reject/under_query).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Evidence(System.String)">
+            <summary>Evidence bundle for a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Ubl(System.String)">
+            <summary>UBL XML export of a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Pdf(System.String)">
+            <summary>PDF preview of a document.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Events(System.Int32,System.String)">
+            <summary>Connector event stream (cursor-based, document lifecycle).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.GetWebhook">
+            <summary>Load Connector webhook configuration.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.UpsertWebhook(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create or update Connector webhook.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.DeleteWebhook">
+            <summary>Delete Connector webhook.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.RotateSecret">
+            <summary>Rotate webhook signing secret.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.TestWebhook(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Send a test webhook event.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Deliveries(System.Int32)">
+            <summary>Webhook delivery history.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.DeliveryDetail(System.String)">
+            <summary>Detail of one webhook delivery.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Replay(System.String)">
+            <summary>Replay a delivery.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.TestSuite(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Start receiver test suite (7 tests).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.TestSuiteStatus(System.String)">
+            <summary>Track receiver test suite status.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Mapper(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Connector mapper dry-run (ERP mapping helper).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Autopilot(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Autopilot — managed sending flow.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.AutopilotStatus(System.String)">
+            <summary>Autopilot status.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.ConnectorController.Sync(System.String)">
+            <summary>Synchronize customer documents (reconciliation helper).</summary>
+        </member>
         <member name="M:SapiSkProxy.Controllers.DocumentController.SendDocument(SapiSkProxy.Models.Documents.SendDocumentRequest)">
             <summary>Submit a single electronic business document for processing and delivery via Peppol network.</summary>
         </member>
@@ -178,14 +259,140 @@
         <member name="M:SapiSkProxy.Controllers.EnterpriseController.CompanyLookup(System.String)">
             <summary>Company registry lookup (FSR) + Peppol status by ico.</summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Statistics">
-            <summary>Aggregated document statistics.</summary>
+        <member name="T:SapiSkProxy.Controllers.KlientiController">
+            <summary>
+            Klienti — sprava klientov a firiem. Onboarding, consent, firmy, white-label,
+            integrator keys, webhook infra. Mock-backed so every op returns non-empty 200.
+            </summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Audit(System.Int32)">
-            <summary>Security / authorization audit feed.</summary>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CreateConsentOffer(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create consent offer (pozvánka).</summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.EnterpriseController.Account">
-            <summary>Account info (firm, plan, metering).</summary>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ConsentOfferStatus(System.String)">
+            <summary>Get consent offer status.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ListCustomers(System.Int32,System.String)">
+            <summary>List customers.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CreateCustomer(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create / upsert a customer.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CreateOnboarding(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create onboarding request.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.GetOnboarding(System.String)">
+            <summary>Get onboarding request.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ListFirms">
+            <summary>List accessible firms.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.FirmDetail(System.String)">
+            <summary>Firm detail.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.FirmDocuments(System.String,System.Int32)">
+            <summary>Documents of a firm.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.AssignFirm(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Assign firm by dic/ico.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.AssignBatch(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Batch assign firms (max 50).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CreateConsentLink(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create consent link (one-shot).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ConsentStatus(System.String,System.String)">
+            <summary>Read consent status by dic/ico.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.RegisterPeppolId(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Register Peppol identifier for a firm.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ListParticipants">
+            <summary>List managed participants.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ParticipantDetail(System.String)">
+            <summary>Participant detail.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.RegisterParticipant(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Register participant from FS SR webhook / verification token.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.MigrateParticipant(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Migrate participant with SMP migration code.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.MigrationCode(System.String)">
+            <summary>Request migration code for participant leaving platform.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.OperationStatus(System.String)">
+            <summary>Operation status (white-label / manual_review).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ListKeys">
+            <summary>List integrator keys.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CreateKey(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create scoped integrator key.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.RevokeKey(System.String)">
+            <summary>Revoke integrator key.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.LicenseInfo">
+            <summary>Integrator license / plan consumption.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ListWebhooks">
+            <summary>List webhooks.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CreateWebhook(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Create webhook subscription.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.WebhookDetail(System.String)">
+            <summary>Webhook detail + last deliveries.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.PatchWebhook(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Update webhook.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.DeleteWebhook(System.String)">
+            <summary>Delete webhook.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.TestWebhook(System.String)">
+            <summary>Send test event to webhook.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.RotateWebhookSecret(System.String)">
+            <summary>Rotate webhook secret.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.WebhookDeliveries(System.String,System.Int32)">
+            <summary>Delivery history for webhook.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.DeadLetter(System.Int32)">
+            <summary>Dead-letter queue (failed terminal deliveries).</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ReplayDead(System.String)">
+            <summary>Replay a failed delivery.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.ResolveDead(System.String,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Mark failure resolved.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CrossFirmQueue(System.Int32)">
+            <summary>Cross-firm webhook queue.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.CrossFirmAck(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Cross-firm batch ack.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.EventsPull(System.Int32)">
+            <summary>Unacknowledged pull events.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.AckEvent(System.String)">
+            <summary>Ack one event.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.BatchAck(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Batch ack events.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.Statistics">
+            <summary>Document statistics.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.Audit">
+            <summary>Audit feed.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.KlientiController.Account">
+            <summary>Account info.</summary>
         </member>
         <member name="P:SapiSkProxy.Options.SapiSkOptions.RefreshAheadSeconds">
             <summary>
