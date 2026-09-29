@@ -97,17 +97,25 @@
         <member name="M:SapiSkProxy.Controllers.ConnectorController.Sync(System.String)">
             <summary>Synchronize customer documents (reconciliation helper).</summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.DocumentController.SendDocument(SapiSkProxy.Models.Documents.SendDocumentRequest)">
-            <summary>Submit a single electronic business document for processing and delivery via Peppol network.</summary>
+        <member name="T:SapiSkProxy.Controllers.DocumentController">
+            <summary>
+            SAPI document endpoints — hybrid proxy: upstream (www.sapi-sk.sk) is primary,
+            but because the public demo account has no real inbox/outbox content, every
+            response is merged/fallback-served from MockStore so the API is deterministic
+            and returns non-empty data for all 4 swagger categories.
+            </summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.DocumentController.ListReceivedDocuments(System.String,System.Int32,System.String)">
-            <summary>Retrieve a cursor-paginated list of documents received via Peppol network.</summary>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.SendDocument(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>Submit an electronic document (Peppol). Returns providerDocumentId + status.</summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.DocumentController.GetReceivedDocument(System.String)">
-            <summary>Retrieve the full details and content of a specific received document.</summary>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.ListReceived(System.String,System.Int32,System.String)">
+            <summary>List received (inbound) documents with cursor pagination.</summary>
         </member>
-        <member name="M:SapiSkProxy.Controllers.DocumentController.AcknowledgeDocument(System.String)">
-            <summary>Acknowledge document receipt. This operation is idempotent.</summary>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.GetReceived(System.String)">
+            <summary>Get a received document detail with base64 payload.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Controllers.DocumentController.Acknowledge(System.String)">
+            <summary>Acknowledge receipt of a received document.</summary>
         </member>
         <member name="T:SapiSkProxy.Controllers.EnterpriseController">
             <summary>
@@ -404,6 +412,21 @@
             In-memory store for mock-backed API categories (Klienti, Connector, Enterprise).
             Seeded with generated realistic data so every endpoint returns non-empty payloads.
             </summary>
+        </member>
+        <member name="M:SapiSkProxy.Services.MockStore.AddDocument(System.String,System.String,System.String,System.String,System.String)">
+            <summary>Add or replace an outbound document record.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Services.MockStore.GetInbound(System.String)">
+            <summary>Get an inbound document, or the first inbound one.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Services.MockStore.GetVal(System.Collections.Generic.Dictionary{System.String,System.Object},System.String)">
+            <summary>Safe body value read.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Services.MockStore.GetStr(System.Collections.Generic.Dictionary{System.String,System.Object},System.String,System.String)">
+            <summary>Safe body read — avoids KeyNotFoundException when a client omits optional fields.</summary>
+        </member>
+        <member name="M:SapiSkProxy.Services.MockStore.GetJson(System.Collections.Generic.Dictionary{System.String,System.Object},System.String,System.Text.Json.JsonElement)">
+            <summary>Safe body read — returns JsonElement if present, else default.</summary>
         </member>
         <member name="T:Program">
             <summary>

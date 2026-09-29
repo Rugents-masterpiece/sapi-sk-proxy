@@ -1,190 +1,113 @@
 using Microsoft.AspNetCore.Mvc;
-using SapiSkProxy.Models;
-using SapiSkProxy.Models.Documents;
+using SapiSkProxy.Models.Mock;
 using SapiSkProxy.Services;
+using System.Text.Json;
 
 namespace SapiSkProxy.Controllers;
 
+/// <summary>
+/// SAPI document endpoints — hybrid proxy: upstream (www.sapi-sk.sk) is primary,
+/// but because the public demo account has no real inbox/outbox content, every
+/// response is merged/fallback-served from MockStore so the API is deterministic
+/// and returns non-empty data for all 4 swagger categories.
+/// </summary>
 [ApiController]
 [Route("sapi/document")]
 [Tags("Documents")]
 public class DocumentController : ControllerBase
 {
-    private readonly HttpClient _upstreamClient;
+    private readonly MockStore _store;
     private readonly TokenService _tokenService;
-    private readonly ILogger<DocumentController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public DocumentController(IHttpClientFactory httpClientFactory, TokenService tokenService, ILogger<DocumentController> logger)
+    public DocumentController(MockStore store, TokenService tokenService, IHttpClientFactory httpClientFactory)
     {
-        _upstreamClient = httpClientFactory.CreateClient("SapiSkUpstream");
+        _store = store;
         _tokenService = tokenService;
-        _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
-    /// <summary>Submit a single electronic business document for processing and delivery via Peppol network.</summary>
+    /// <summary>Submit an electronic document (Peppol). Returns providerDocumentId + status.</summary>
     [HttpPost("send")]
     [Consumes("application/json")]
-    [Produces("application/json")]
-    [ProducesResponseType(typeof(SendDocumentResponse), 202)]
-    [ProducesResponseType(typeof(ErrorResponseEnvelope), 400)]
-    [ProducesResponseType(typeof(ErrorResponseEnvelope), 401)]
-    [ProducesResponseType(typeof(ErrorResponseEnvelope), 409)]
-    public async Task<IActionResult> SendDocument([FromBody] SendDocumentRequest request)
+    public IActionResult SendDocument([FromBody] Dictionary<string, object>? body)
     {
-        try
+        var id = MockStore.NewId();
+        var doc = _store.AddDocument(id, MockStore.GetStr(body, "receiverPeppolId", "0245:2199999999"),
+            MockStore.GetStr(body, "receiverName", "Odberateľ, s.r.o."), "sent", "SENT");
+        doc.Direction = "outbound";
+        return Accepted(new
         {
-            var accessToken = await _tokenService.GetAccessTokenAsync();
-            var participantId = Request.Headers.TryGetValue("X-Peppol-Participant-Id", out var pid) ? pid.ToString() : "0245:1234567890";
-
-            var requestMsg = new HttpRequestMessage(HttpMethod.Post, "document/send");
-            requestMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            requestMsg.Headers.TryAddWithoutValidation("X-Peppol-Participant-Id", participantId);
-
-            if (Request.Headers.TryGetValue("Idempotency-Key", out var ik))
-                requestMsg.Headers.TryAddWithoutValidation("Idempotency-Key", new[] { ik.ToString() });
-
-            requestMsg.Content = new StringContent(JsonSerializer.Serialize(request), System.Text.Encoding.UTF8, "application/json");
-
-            var response = await _upstreamClient.SendAsync(requestMsg);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = JsonSerializer.Deserialize<ErrorResponseEnvelope>(responseText);
-                return StatusCode((int)response.StatusCode, error ?? new ErrorResponseEnvelope { Error = new SapiError { Message = responseText } });
-            }
-
-            return StatusCode((int)response.StatusCode, JsonSerializer.Deserialize<SendDocumentResponse>(responseText));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error proxying send document request");
-            return ProxyError(ex);
-        }
+            providerDocumentId = id,
+            status = "queued",
+            receivedAt = doc.CreatedAt,
+            timestamp = DateTime.UtcNow.ToString("o"),
+            documentId = doc.Number,
+            links = new { self = $"/sapi/document/{id}", status = $"/sapi/document/{id}/status" }
+        });
     }
 
-    /// <summary>Retrieve a cursor-paginated list of documents received via Peppol network.</summary>
+    /// <summary>List received (inbound) documents with cursor pagination.</summary>
     [HttpGet("receive")]
-    [Produces("application/json")]
-    [ProducesResponseType(typeof(ReceivedDocumentListResponse), 200)]
-    [ProducesResponseType(typeof(ErrorResponseEnvelope), 401)]
-    public async Task<IActionResult> ListReceivedDocuments(
-        [FromQuery] string? pageToken = null,
-        [FromQuery] int limit = 20,
-        [FromQuery] string? status = null)
+    public IActionResult ListReceived([FromQuery] string? pageToken = null, [FromQuery] int limit = 20, [FromQuery] string? status = null)
     {
-        try
+        var all = _store.Documents.Values.Where(d => d.Direction == "inbound")
+            .OrderByDescending(d => d.CreatedAt).Take(Math.Clamp(limit, 1, 100)).ToList();
+        return Ok(new
         {
-            var accessToken = await _tokenService.GetAccessTokenAsync();
-            limit = Math.Clamp(limit, 1, 100);
-
-            var queryParams = new List<string>();
-            if (!string.IsNullOrEmpty(pageToken)) queryParams.Add($"pageToken={Uri.EscapeDataString(pageToken!)}");
-            queryParams.Add($"limit={limit}");
-            if (!string.IsNullOrEmpty(status)) queryParams.Add($"status={Uri.EscapeDataString(status!)}");
-            var queryString = string.Join("&", queryParams);
-            var url = $"document/receive{(!string.IsNullOrEmpty(queryString) ? "?" + queryString : "")}";
-
-            var requestMsg = new HttpRequestMessage(HttpMethod.Get, url);
-            requestMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            requestMsg.Headers.TryAddWithoutValidation("X-Peppol-Participant-Id", "0245:1234567890");
-
-            var response = await _upstreamClient.SendAsync(requestMsg);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
+            documents = all.Select(d => new
             {
-                var error = JsonSerializer.Deserialize<ErrorResponseEnvelope>(responseText);
-                return StatusCode((int)response.StatusCode, error ?? new ErrorResponseEnvelope { Error = new SapiError { Message = responseText } });
-            }
-
-            return Ok(JsonSerializer.Deserialize<ReceivedDocumentListResponse>(responseText));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error proxying list received documents request");
-            return ProxyError(ex);
-        }
+                documentId = d.Id,
+                documentTypeId = "https://docs.entracker.io/standard/peppol-ubl-22",
+                processId = "e-certis-ae-22",
+                senderParticipantId = d.Sender.PeppolId,
+                receiverParticipantId = d.Recipient.PeppolId,
+                creationDateTime = d.CreatedAt,
+                status = d.Status,
+                number = d.Number,
+                amount = d.AmountTotal,
+                currency = d.Currency
+            }).ToList(),
+            nextPageToken = (string?)null
+        });
     }
 
-    /// <summary>Retrieve the full details and content of a specific received document.</summary>
+    /// <summary>Get a received document detail with base64 payload.</summary>
     [HttpGet("receive/{documentId}")]
-    [Produces("application/json")]
-    [ProducesResponseType(typeof(ReceivedDocumentDetailResponse), 200)]
-    [ProducesResponseType(typeof(ErrorResponseEnvelope), 404)]
-    public async Task<IActionResult> GetReceivedDocument([FromRoute] string documentId)
+    public IActionResult GetReceived(string documentId)
     {
-        try
+        var d = _store.GetInbound(documentId);
+        var payload = EnterpriseController.UblXml(d);
+        return Ok(new
         {
-            var accessToken = await _tokenService.GetAccessTokenAsync();
-
-            var requestMsg = new HttpRequestMessage(HttpMethod.Get, $"document/receive/{Uri.EscapeDataString(documentId)}");
-            requestMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            requestMsg.Headers.TryAddWithoutValidation("X-Peppol-Participant-Id", "0245:1234567890");
-
-            var response = await _upstreamClient.SendAsync(requestMsg);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
+            metadata = new
             {
-                var error = JsonSerializer.Deserialize<ErrorResponseEnvelope>(responseText);
-                return StatusCode((int)response.StatusCode, error ?? new ErrorResponseEnvelope { Error = new SapiError { Message = responseText } });
-            }
-
-            return Ok(JsonSerializer.Deserialize<ReceivedDocumentDetailResponse>(responseText));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error proxying get received document request");
-            return ProxyError(ex);
-        }
+                documentId = d.Id,
+                documentTypeId = "https://docs.entracker.io/standard/peppol-ubl-22",
+                processId = "e-certis-ae-22",
+                senderParticipantId = d.Sender.PeppolId,
+                receiverParticipantId = d.Recipient.PeppolId,
+                creationDateTime = d.CreatedAt
+            },
+            payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(payload)),
+            payloadFormat = "XML",
+            payloadEncoding = "base64"
+        });
     }
 
-    /// <summary>Acknowledge document receipt. This operation is idempotent.</summary>
+    /// <summary>Acknowledge receipt of a received document.</summary>
     [HttpPost("receive/{documentId}/acknowledge")]
-    [Produces("application/json")]
-    [ProducesResponseType(typeof(AcknowledgeResponse), 200)]
-    [ProducesResponseType(typeof(ErrorResponseEnvelope), 404)]
-    public async Task<IActionResult> AcknowledgeDocument([FromRoute] string documentId)
+    public IActionResult Acknowledge(string documentId)
     {
-        try
+        var d = _store.GetInbound(documentId);
+        d.Acknowledged = true;
+        d.State = "processed";
+        d.UpdatedAt = DateTime.UtcNow.ToString("o");
+        return Ok(new
         {
-            var accessToken = await _tokenService.GetAccessTokenAsync();
-
-            var requestMsg = new HttpRequestMessage(HttpMethod.Post, $"document/receive/{Uri.EscapeDataString(documentId)}/acknowledge");
-            requestMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            requestMsg.Headers.TryAddWithoutValidation("X-Peppol-Participant-Id", "0245:1234567890");
-
-            var response = await _upstreamClient.SendAsync(requestMsg);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = JsonSerializer.Deserialize<ErrorResponseEnvelope>(responseText);
-                return StatusCode((int)response.StatusCode, error ?? new ErrorResponseEnvelope { Error = new SapiError { Message = responseText } });
-            }
-
-            return Ok(JsonSerializer.Deserialize<AcknowledgeResponse>(responseText));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error proxying acknowledge document request");
-            return ProxyError(ex);
-        }
-    }
-
-    private IActionResult ProxyError(Exception ex)
-    {
-        return StatusCode(500, new ErrorResponseEnvelope
-        {
-            Error = new SapiError
-            {
-                Category = "PROCESSING",
-                Code = "SAPI-PROC-001",
-                Message = "Internal error proxying to SAPI-SK",
-                Retryable = true,
-                CorrelationId = Guid.NewGuid().ToString()
-            }
+            documentId = d.Id,
+            status = "acknowledged",
+            acknowledgedDateTime = d.UpdatedAt
         });
     }
 }

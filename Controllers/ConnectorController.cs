@@ -113,7 +113,7 @@ public class ConnectorController : ControllerBase
             customerRef = d.CustomerRef,
             response = new
             {
-                status = body?["status"] ?? "under_query",
+                status = MockStore.GetStr(body,"status", "under_query"),
                 direction = "sent",
                 delivery = "sent",
                 respondedAt = DateTime.UtcNow.ToString("o")
@@ -220,8 +220,8 @@ public class ConnectorController : ControllerBase
             };
             _store.Webhooks["default"] = wh;
         }
-        wh.Url = (body?["url"]?.ToString()) ?? wh.Url;
-        if (body?["events"] is System.Text.Json.JsonElement ev)
+        wh.Url = (MockStore.GetStr(body,"url")) ?? wh.Url;
+        if (MockStore.GetVal(body,"events") is System.Text.Json.JsonElement ev)
         {
             var list = new List<string>();
             foreach (var x in ev.EnumerateArray()) list.Add(x.GetString() ?? "");
@@ -236,7 +236,7 @@ public class ConnectorController : ControllerBase
     public IActionResult DeleteWebhook()
     {
         foreach (var k in _store.Webhooks.Keys.ToList()) _store.Webhooks.TryRemove(k, out _);
-        return NoContent();
+        return Ok(new { removed = true, remaining = _store.Webhooks.Count, timestamp = DateTime.UtcNow.ToString("o") });
     }
 
     /// <summary>Rotate webhook signing secret.</summary>
@@ -267,7 +267,7 @@ public class ConnectorController : ControllerBase
             @event = new
             {
                 id = "evt_test_" + Guid.NewGuid().ToString("N")[..8],
-                customerRef = body?["customerRef"] ?? "erp-acme",
+                customerRef = MockStore.GetStr(body,"customerRef", "erp-acme"),
                 documentId = "doc_test_" + Guid.NewGuid().ToString("N")[..8],
                 type = "document.received",
                 state = "received",
@@ -327,7 +327,7 @@ public class ConnectorController : ControllerBase
     public IActionResult TestSuite([FromBody] Dictionary<string, object>? body)
     {
         var runId = "wtr_" + Guid.NewGuid().ToString("N")[..10];
-        return Accepted(new { testRunId = runId, status = "RUNNING", customerRef = body?["customerRef"] ?? "erp-acme", testsQueued = 7 });
+        return Accepted(new { testRunId = runId, status = "RUNNING", customerRef = MockStore.GetStr(body,"customerRef", "erp-acme"), testsQueued = 7 });
     }
 
     /// <summary>Track receiver test suite status.</summary>
@@ -440,10 +440,10 @@ public class ConnectorController : ControllerBase
         return new DocumentRecord
         {
             Id = id, DocumentId = id,
-            Number = (body?["number"]?.ToString()) ?? "2026-" + id[..6],
-            Type = (body?["type"]?.ToString()) ?? "invoice",
+            Number = (MockStore.GetStr(body,"number")) ?? "2026-" + id[..6],
+            Type = (MockStore.GetStr(body,"type")) ?? "invoice",
             Direction = staged ? "inbound" : "outbound",
-            CustomerRef = (body?["customerRef"]?.ToString()) ?? "erp-acme",
+            CustomerRef = (MockStore.GetStr(body,"customerRef")) ?? "erp-acme",
             FirmId = _store.Firms.Values.First().Id,
             Sender = new PartySnapshot { Name = "Dodávateľ, s.r.o.", TaxId = "2120123456", PeppolId = "0245:2120123456", Country = "SK" },
             Recipient = new PartySnapshot { Name = "Odberateľ, s.r.o.", TaxId = "2199999999", PeppolId = "0245:2199999999", Country = "SK" },

@@ -25,8 +25,8 @@ public class EnterpriseController : ControllerBase
         var docId = MockStore.NewId();
         var now = DateTime.UtcNow;
         var doc = NewDoc(docId, "outbound", "invoice",
-            (body?["receiverPeppolId"]?.ToString()) ?? "0245:2199999999",
-            (body?["receiverName"]?.ToString()) ?? "Odberateľ, s.r.o.", "sent", "SENT");
+            (MockStore.GetStr(body,"receiverPeppolId")) ?? "0245:2199999999",
+            (MockStore.GetStr(body,"receiverName")) ?? "Odberateľ, s.r.o.", "sent", "SENT");
         _store.Documents[docId] = doc;
         AddEvent(doc, "document.sent", "sent");
         return Accepted(new
@@ -64,7 +64,7 @@ public class EnterpriseController : ControllerBase
         return Ok(new
         {
             ok = true,
-            receiver = new { peppolId = body?["receiverPeppolId"] ?? "0245:2199999999", networkReady = true, documentTypesAccepted = new[] { "invoice", "credit-note" } },
+            receiver = new { peppolId = MockStore.GetStr(body,"receiverPeppolId", "0245:2199999999"), networkReady = true, documentTypesAccepted = new[] { "invoice", "credit-note" } },
             validation = new { valid = true, errors = Array.Empty<object>(), warnings = new[] { new { code = "WARN-101", field = "dueDate", message = "Due date is shorter than typical 14-day terms." } } },
             checkedAt = DateTime.UtcNow.ToString("o")
         });
@@ -225,7 +225,7 @@ public class EnterpriseController : ControllerBase
             documentId = doc.Id,
             response = new
             {
-                status = body?["status"] ?? "under_query",
+                status = MockStore.GetStr(body,"status", "under_query"),
                 direction = "sent",
                 delivery = "sent",
                 respondedAt = DateTime.UtcNow.ToString("o")
@@ -249,7 +249,7 @@ public class EnterpriseController : ControllerBase
             documentId = id,
             state = "processed",
             markedAt = DateTime.UtcNow.ToString("o"),
-            note = body?["note"] ?? "marked via API"
+            note = MockStore.GetStr(body,"note", "marked via API")
         });
     }
 
@@ -361,7 +361,7 @@ public class EnterpriseController : ControllerBase
         var doc = NewDoc(id, "inbound", "invoice", "0245:2120123456", "Dodávateľ, s.r.o.", "received", "RECEIVED");
         _store.Documents[id] = doc;
         AddEvent(doc, "document.received", "received");
-        return Accepted(new { id, imported = true, source = body?["source"] ?? "email", messageRef = body?["messageId"] ?? "local-1", receivedAt = doc.CreatedAt });
+        return Accepted(new { id, imported = true, source = MockStore.GetStr(body,"source", "email"), messageRef = MockStore.GetStr(body,"messageId", "local-1"), receivedAt = doc.CreatedAt });
     }
 
     /// <summary>Cached Peppol participant lookup by ico.</summary>
@@ -463,9 +463,9 @@ public class EnterpriseController : ControllerBase
         var id = MockStore.NewId();
         var item = new BoxItem
         {
-            Id = id, State = "queued", DocumentId = (body?["documentId"]?.ToString()) ?? MockStore.NewId(),
-            Number = (body?["number"]?.ToString()) ?? "BOX-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-001",
-            CustomerRef = (body?["customerRef"]?.ToString()) ?? "erp-acme",
+            Id = id, State = "queued", DocumentId = (MockStore.GetStr(body,"documentId")) ?? MockStore.NewId(),
+            Number = (MockStore.GetStr(body,"number")) ?? "BOX-" + DateTime.UtcNow.ToString("yyyyMMdd") + "-001",
+            CustomerRef = (MockStore.GetStr(body,"customerRef")) ?? "erp-acme",
             CreatedAt = DateTime.UtcNow.ToString("o")
         };
         _store.BoxItems[id] = item;
@@ -478,7 +478,7 @@ public class EnterpriseController : ControllerBase
     {
         var item = _store.BoxItems.Values.FirstOrDefault(b => b.Id == itemId) ?? _store.BoxItems.Values.First();
         item.State = "scheduled";
-        item.ScheduledFor = (body?["scheduledFor"]?.ToString()) ?? DateTime.UtcNow.AddHours(6).ToString("o");
+        item.ScheduledFor = (MockStore.GetStr(body,"scheduledFor")) ?? DateTime.UtcNow.AddHours(6).ToString("o");
         return Ok(new { id = item.Id, state = "scheduled", scheduledFor = item.ScheduledFor });
     }
 
@@ -789,7 +789,7 @@ public class EnterpriseController : ControllerBase
             ["seller"] = new { name = "Dodávateľ, s.r.o.", peppolId = "0245:2120123456", taxId = "2120123456" },
             ["buyer"] = new { name = "Odberateľ, s.r.o.", peppolId = "0245:2199999999", taxId = "2199999999" },
             ["lines"] = new object[] { new { description = "Mesačná licencia", quantity = 1, unitPrice = 100.00, vatRate = 23 } },
-            ["ocr"] = new { engine = "vision-v2", confidence = 0.97, pages = 1, bytes = 131072, sourceFile = body?["filename"] ?? "scan.pdf" },
+            ["ocr"] = new { engine = "vision-v2", confidence = 0.97, pages = 1, bytes = 131072, sourceFile = MockStore.GetStr(body,"filename", "scan.pdf") },
             ["warnings"] = new object[] { }
         };
     }

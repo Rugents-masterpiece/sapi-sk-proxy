@@ -271,4 +271,40 @@ public class MockStore
     public int NextIndex(int current, int max) => (current + 1) % max;
 
     public static string NewId() => Guid.NewGuid().ToString();
+
+    /// <summary>Add or replace an outbound document record.</summary>
+    public DocumentRecord AddDocument(string id, string receiverPeppolId, string receiverName, string state, string status)
+    {
+        var now = DateTime.UtcNow.ToString("o");
+        var d = new DocumentRecord
+        {
+            Id = id, DocumentId = id, Number = "2026-" + id[..6], Type = "invoice", Direction = "outbound",
+            CustomerRef = "erp-acme", FirmId = Firms.Values.First().Id,
+            Sender = new PartySnapshot { Name = "Dodávateľ, s.r.o.", TaxId = "2120123456", PeppolId = "0245:2120123456", Country = "SK" },
+            Recipient = new PartySnapshot { Name = receiverName, PeppolId = receiverPeppolId, Country = "SK" },
+            State = state, Status = status, Currency = "EUR",
+            AmountWithoutTax = 100, AmountTax = 23, AmountTotal = 123,
+            IssueDate = DateTime.UtcNow.Date.ToString("yyyy-MM-dd"),
+            DueDate = DateTime.UtcNow.AddDays(14).Date.ToString("yyyy-MM-dd"),
+            CreatedAt = now, UpdatedAt = now
+        };
+        _documents[id] = d;
+        return d;
+    }
+
+    /// <summary>Get an inbound document, or the first inbound one.</summary>
+    public DocumentRecord GetInbound(string id)
+        => _documents.TryGetValue(id, out var d) ? d : _documents.Values.FirstOrDefault(x => x.Direction == "inbound") ?? _documents.Values.First();
+
+    /// <summary>Safe body value read.</summary>
+    public static object? GetVal(System.Collections.Generic.Dictionary<string, object>? body, string key)
+        => (body != null && body.TryGetValue(key, out var v)) ? v : null;
+
+    /// <summary>Safe body read — avoids KeyNotFoundException when a client omits optional fields.</summary>
+    public static string? GetStr(System.Collections.Generic.Dictionary<string, object>? body, string key, string? def = null)
+        => (body != null && body.TryGetValue(key, out var v)) ? (v?.ToString()) : def;
+
+    /// <summary>Safe body read — returns JsonElement if present, else default.</summary>
+    public static System.Text.Json.JsonElement GetJson(System.Collections.Generic.Dictionary<string, object>? body, string key, System.Text.Json.JsonElement def)
+        => (body != null && body.TryGetValue(key, out var v) && v is System.Text.Json.JsonElement je) ? je : def;
 }

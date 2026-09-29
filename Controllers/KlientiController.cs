@@ -25,13 +25,13 @@ public class KlientiController : ControllerBase
         var offer = new ConsentOffer
         {
             Id = id,
-            TargetIdentifier = (body?["targetIdentifier"]?.ToString()) ?? "2122701339",
-            TargetIdentifierType = (body?["targetIdentifierType"]?.ToString()) ?? "dic",
+            TargetIdentifier = (MockStore.GetStr(body,"targetIdentifier")) ?? "2122701339",
+            TargetIdentifierType = (MockStore.GetStr(body,"targetIdentifierType")) ?? "dic",
             CompanyName = "Beta Logistics, a.s.",
-            RelationshipMode = (body?["relationshipMode"]?.ToString()) ?? "technical_delegation",
-            IntegrationPath = (body?["integrationPath"]?.ToString()) ?? "sapi",
+            RelationshipMode = (MockStore.GetStr(body,"relationshipMode")) ?? "technical_delegation",
+            IntegrationPath = (MockStore.GetStr(body,"integrationPath")) ?? "sapi",
             RequestedInterfaces = new List<string> { "connector", "sapi" },
-            Scopes = (body?["scopes"] is System.Text.Json.JsonElement sc)
+            Scopes = (MockStore.GetVal(body,"scopes") is System.Text.Json.JsonElement sc)
                 ? sc.EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToList()
                 : new List<string> { "firms:manage", "documents:send" },
             Status = "issued",
@@ -66,17 +66,17 @@ public class KlientiController : ControllerBase
     public IActionResult CreateCustomer([FromBody] Dictionary<string, object>? body)
     {
         var firm = _store.Firms.Values.First();
-        var refKey = (body?["customerRef"]?.ToString()) ?? ("erp-" + DateTime.UtcNow.ToString("yyyyMMddHHmm"));
+        var refKey = (MockStore.GetStr(body,"customerRef")) ?? ("erp-" + DateTime.UtcNow.ToString("yyyyMMddHHmm"));
         _store.Customers[refKey] = new Customer
         {
             CustomerRef = refKey,
-            FirmId = (body?["firmId"]?.ToString()) ?? firm.Id,
-            Name = (body?["name"]?.ToString()) ?? "Nový klient, s.r.o.",
-            Dic = (body?["dic"]?.ToString()) ?? "2122701339",
-            Ico = (body?["ico"]?.ToString()) ?? "45698201",
-            Relationship = (body?["relationship"]?.ToString()) ?? "represented",
+            FirmId = (MockStore.GetStr(body,"firmId")) ?? firm.Id,
+            Name = (MockStore.GetStr(body,"name")) ?? "Nový klient, s.r.o.",
+            Dic = (MockStore.GetStr(body,"dic")) ?? "2122701339",
+            Ico = (MockStore.GetStr(body,"ico")) ?? "45698201",
+            Relationship = (MockStore.GetStr(body,"relationship")) ?? "represented",
             Status = "active",
-            IntegrationPath = (body?["integrationPath"]?.ToString()) ?? "connector",
+            IntegrationPath = (MockStore.GetStr(body,"integrationPath")) ?? "connector",
             CreatedAt = DateTime.UtcNow.ToString("o"),
             UpdatedAt = DateTime.UtcNow.ToString("o")
         };
@@ -93,11 +93,11 @@ public class KlientiController : ControllerBase
         var req = new OnboardingRequest
         {
             Id = id,
-            TargetIdentifier = (body?["targetIdentifier"]?.ToString()) ?? "2122701339",
-            TargetIdentifierType = (body?["targetIdentifierType"]?.ToString()) ?? "dic",
-            ServiceMode = (body?["serviceMode"]?.ToString()) ?? "send_only",
-            RelationshipMode = (body?["relationshipMode"]?.ToString()) ?? "technical_delegation",
-            IntegrationPath = (body?["integrationPath"]?.ToString()) ?? "connector",
+            TargetIdentifier = (MockStore.GetStr(body,"targetIdentifier")) ?? "2122701339",
+            TargetIdentifierType = (MockStore.GetStr(body,"targetIdentifierType")) ?? "dic",
+            ServiceMode = (MockStore.GetStr(body,"serviceMode")) ?? "send_only",
+            RelationshipMode = (MockStore.GetStr(body,"relationshipMode")) ?? "technical_delegation",
+            IntegrationPath = (MockStore.GetStr(body,"integrationPath")) ?? "connector",
             Scopes = new List<string> { "documents:send", "documents:read" },
             Status = "pending",
             CreatedAt = DateTime.UtcNow.ToString("o")
@@ -155,7 +155,7 @@ public class KlientiController : ControllerBase
     [HttpPost("api/v1/firms/assign")]
     public IActionResult AssignFirm([FromBody] Dictionary<string, object>? body)
     {
-        var dic = (body?["dic"]?.ToString()) ?? "2122701339";
+        var dic = (MockStore.GetStr(body,"dic")) ?? "2122701339";
         var firm = _store.Firms.Values.FirstOrDefault(f => f.Dic == dic) ?? _store.Firms.Values.First();
         firm.ConsentState = "active"; firm.Status = "active";
         return Ok(new { firmId = firm.Id, dic, status = "active", activatedAt = DateTime.UtcNow.ToString("o") });
@@ -177,7 +177,7 @@ public class KlientiController : ControllerBase
         return Ok(new
         {
             consentUrl = "https://sapi.patjo.uk/consent/" + Guid.NewGuid().ToString("N"),
-            dic = body?["dic"] ?? "2122701339",
+            dic = MockStore.GetStr(body,"dic", "2122701339"),
             expiresAt = DateTime.UtcNow.AddDays(7).ToString("o"),
             state = "pending"
         });
@@ -224,9 +224,9 @@ public class KlientiController : ControllerBase
         var id = MockStore.NewId();
         var p = new Participant
         {
-            Id = id, PeppolId = "0245:" + (body?["dic"] ?? "2122701339"),
-            Scheme = "0245", Identifier = (body?["dic"]?.ToString()) ?? "2122701339",
-            Name = (body?["companyName"]?.ToString()) ?? "Nová firma, s.r.o.",
+            Id = id, PeppolId = "0245:" + (MockStore.GetStr(body,"dic", "2122701339")),
+            Scheme = "0245", Identifier = (MockStore.GetStr(body,"dic")) ?? "2122701339",
+            Name = (MockStore.GetStr(body,"companyName")) ?? "Nová firma, s.r.o.",
             Status = "pending", CreatedAt = DateTime.UtcNow.ToString("o"), UpdatedAt = DateTime.UtcNow.ToString("o")
         };
         _store.Participants[id] = p;
@@ -240,9 +240,9 @@ public class KlientiController : ControllerBase
         var id = MockStore.NewId();
         var p = new Participant
         {
-            Id = id, PeppolId = "0245:" + (body?["dic"] ?? "2020123456"),
-            Scheme = "0245", Identifier = (body?["dic"]?.ToString()) ?? "2020123456",
-            Name = (body?["companyName"]?.ToString()) ?? "Migrovaná firma, s.r.o.",
+            Id = id, PeppolId = "0245:" + (MockStore.GetStr(body,"dic", "2020123456")),
+            Scheme = "0245", Identifier = (MockStore.GetStr(body,"dic")) ?? "2020123456",
+            Name = (MockStore.GetStr(body,"companyName")) ?? "Migrovaná firma, s.r.o.",
             Status = "active", CreatedAt = DateTime.UtcNow.ToString("o"), UpdatedAt = DateTime.UtcNow.ToString("o")
         };
         _store.Participants[id] = p;
@@ -284,7 +284,7 @@ public class KlientiController : ControllerBase
         var id = MockStore.NewId();
         var k = new IntegratorKey
         {
-            Id = id, Name = (body?["name"]?.ToString()) ?? "ERP scoped key",
+            Id = id, Name = (MockStore.GetStr(body,"name")) ?? "ERP scoped key",
             KeyPrefix = "sk_int_" + Guid.NewGuid().ToString("N")[..6],
             Scopes = new List<string> { "documents:send", "documents:read" },
             Active = true, CreatedAt = DateTime.UtcNow.ToString("o")
@@ -343,8 +343,8 @@ public class KlientiController : ControllerBase
         var id = "wh_" + Guid.NewGuid().ToString("N")[..12];
         var wh = new WebhookConfig
         {
-            Id = id, Url = (body?["url"]?.ToString()),
-            Events = (body?["events"] is System.Text.Json.JsonElement e) ? e.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : new List<string> { "document.received" },
+            Id = id, Url = (MockStore.GetStr(body,"url")),
+            Events = (MockStore.GetVal(body,"events") is System.Text.Json.JsonElement e) ? e.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : new List<string> { "document.received" },
             Active = true, FailedAttempts = 0,
             Secret = "whsec_" + Guid.NewGuid().ToString("N")[..24],
             CreatedAt = DateTime.UtcNow.ToString("o"), UpdatedAt = DateTime.UtcNow.ToString("o")
@@ -372,8 +372,8 @@ public class KlientiController : ControllerBase
         var wh = _store.Webhooks.TryGetValue(id, out var v) ? v : _store.Webhooks.Values.FirstOrDefault();
         if (wh != null)
         {
-            if (body?["url"] is not null) wh.Url = body["url"]?.ToString();
-            if (body?["active"] is not null) wh.Active = body["active"] is System.Text.Json.JsonElement ba ? ba.GetBoolean() : true;
+            if (MockStore.GetVal(body,"url") is not null) wh.Url = MockStore.GetStr(body,"url");
+            wh.Active = (body != null && body.TryGetValue("active", out var av) && av is System.Text.Json.JsonElement ba) ? ba.GetBoolean() : wh.Active;
             wh.UpdatedAt = DateTime.UtcNow.ToString("o");
             return Ok(ConnectorController.SafeWh(wh));
         }
@@ -385,7 +385,7 @@ public class KlientiController : ControllerBase
     public IActionResult DeleteWebhook(string id)
     {
         _store.Webhooks.TryRemove(id, out _);
-        return NoContent();
+        return Ok(new { id = id, removed = true, timestamp = DateTime.UtcNow.ToString("o") });
     }
 
     /// <summary>Send test event to webhook.</summary>
@@ -435,7 +435,7 @@ public class KlientiController : ControllerBase
     [HttpPost("api/v1/webhook-dead-letter/{deliveryId}/resolve")]
     public IActionResult ResolveDead(string deliveryId, [FromBody] Dictionary<string, object>? body)
     {
-        return Ok(new { deliveryId, resolved = true, reason = body?["reason"] ?? "acknowledged", resolvedAt = DateTime.UtcNow.ToString("o") });
+        return Ok(new { deliveryId, resolved = true, reason = MockStore.GetStr(body,"reason", "acknowledged"), resolvedAt = DateTime.UtcNow.ToString("o") });
     }
 
     /// <summary>Cross-firm webhook queue.</summary>
