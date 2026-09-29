@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("sapi-sk-proxy")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ed38eec3e496c32619857147927a1034c92f70d8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a284d314d1dfb4530e9f9a5c634e8d909a9bb2f8")]
 [assembly: System.Reflection.AssemblyProductAttribute("sapi-sk-proxy")]
 [assembly: System.Reflection.AssemblyTitleAttribute("sapi-sk-proxy")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

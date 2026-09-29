@@ -111,21 +111,19 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ── Middleware ─────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/sapi/swagger.json", "SAPI — Access Point Interface v1");
-        c.SwaggerEndpoint("/swagger/connector/swagger.json", "Connector API v1");
-        c.SwaggerEndpoint("/swagger/enterprise/swagger.json", "Enterprise API Core v1");
-        c.SwaggerEndpoint("/swagger/klienti/swagger.json", "Klienti — správa klientov v1");
-        c.RoutePrefix = "docs";
-        c.DocumentTitle = "SAPI-SK Proxy — Swagger UI (4 kategórie)";
-    });
+    c.SwaggerEndpoint("/swagger/sapi/swagger.json", "SAPI — Access Point Interface v1");
+    c.SwaggerEndpoint("/swagger/connector/swagger.json", "Connector API v1");
+    c.SwaggerEndpoint("/swagger/enterprise/swagger.json", "Enterprise API Core v1");
+    c.SwaggerEndpoint("/swagger/klienti/swagger.json", "Klienti — správa klientov v1");
+    c.RoutePrefix = "docs";
+    c.DocumentTitle = "SAPI-SK Proxy — Swagger UI (4 kategórie)";
+});
 
-    app.MapGet("/", () => Results.Redirect("/docs"));
-}
+app.MapGet("/", () => Results.Redirect("/docs/index.html"));
+
 
 // Serve raw OpenAPI JSON files (for external docs tooling)
 app.UseStaticFiles();
