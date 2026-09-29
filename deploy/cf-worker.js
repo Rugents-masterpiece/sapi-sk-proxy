@@ -72,11 +72,24 @@ export default {
       return new Response(INDEX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
 
-    // /docs and /docs/ → serve Swagger UI directly (upstream's /docs/index.html, which is a real UI)
+    // /docs and /docs/ → serve Swagger UI HTML, rewriting relative asset refs to /docs/
     if (url.pathname === "/docs" || url.pathname === "/docs/") {
       const upstream = await fetchUpstream(`${UPSTREAM}/docs/index.html`, { method: "GET" }).catch(() => null);
       if (upstream && upstream.status === 200) {
-        return passthroughResponse(upstream, corsHeaders(upstream));
+        let body = await upstream.text();
+        body = body
+          .replace(/href="\.\//g, 'href="/docs/')
+          .replace(/src="\.\//g, 'src="/docs/')
+          .replace(/href="index.css"/g, 'href="/docs/index.css"')
+          .replace(/href="swagger-ui.css"/g, 'href="/docs/swagger-ui.css"')
+          .replace(/src="index.js"/g, 'src="/docs/index.js"')
+          .replace(/src="swagger-ui-bundle.js"/g, 'src="/docs/swagger-ui-bundle.js"')
+          .replace(/src="swagger-ui-standalone-preset.js"/g, 'src="/docs/swagger-ui-standalone-preset.js"')
+          .replace(/href="favicon-32x32.png"/g, 'href="/docs/favicon-32x32.png"')
+          .replace(/href="favicon-16x16.png"/g, 'href="/docs/favicon-16x16.png"');
+        const h = new Headers(upstream.headers);
+        h.set("content-type", "text/html; charset=utf-8");
+        return new Response(body, { status: 200, headers: h });
       }
       return new Response(INDEX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
