@@ -428,6 +428,13 @@
         <member name="M:SapiSkProxy.Services.MockStore.GetJson(System.Collections.Generic.Dictionary{System.String,System.Object},System.String,System.Text.Json.JsonElement)">
             <summary>Safe body read — returns JsonElement if present, else default.</summary>
         </member>
+        <member name="T:SapiSkProxy.Swagger.SlovakDescriptionsOperationFilter">
+            <summary>
+            Injects Slovak descriptions, parameter docs and pre-filled request/response examples
+            from Swagger/Descriptions/sapi_descriptions.json into every operation of all 4 categories.
+            (Microsoft.OpenApi 2.x — example values are System.Text.Json.Nodes.JsonNode.)
+            </summary>
+        </member>
         <member name="T:Program">
             <summary>
             Auto-generated public partial Program class for top-level statement apps.

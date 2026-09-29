@@ -1,0 +1,942 @@
+{
+  "commonHeaders": {
+    "Authorization": "Bearer JWT token — získate ho z /sapi/auth/token (SAPI) alebo /api/v1/auth/token (ostatné kategórie).",
+    "Idempotency-Key": "Idempotenský kľúč — opakovaná rovnaká request s rovnakým kľúčom nevykoná duplikát operácie.",
+    "X-Firm-Id": "ID firmy, v menej ktorej konáte. Povinné, ak máte viac firiem.",
+    "X-Peppol-Participant-Id": "Peppol identifikátor účastníka vo formáte sch::id (napr. ICD::31315263)."
+  },
+  "params": {
+    "id": "ID dokumentu (UUID).",
+    "documentId": "ID dokumentu (UUID).",
+    "itemId": "ID položky Box (UUID).",
+    "offerId": "ID pozvánky / consent offer (UUID).",
+    "participantId": "ID Peppol účastníka (UUID).",
+    "operationId": "ID operácie (UUID).",
+    "autopilotId": "ID behu Autopilotu (UUID).",
+    "intakeId": "ID prijatej ERP exporty (UUID).",
+    "deliveryId": "ID doručenia webhooku.",
+    "deliveryJobId": "ID ERP doručovacej úlohy.",
+    "testRunId": "ID behu testovacej sady (UUID).",
+    "keyId": "ID integrátorského kľúča (UUID).",
+    "eventId": "ID eventu (UUID).",
+    "scheme": "Schéma identifikátora — iso6523-icd (IČO), iso6523-ecbr (DIČ) ap. Príklad: iso6523-icd",
+    "identifier": "Identifikátor účastníka v danej schéme (8-miestne IČO, 9–10 DIC). Príklad: 31315263",
+    "ico": "IČO — 8 číslic. Príklad: 31315263",
+    "dic": "DIČ daňovníka (9–10 číslic, bez SK prefixu). Príklad: 1234567890",
+    "page": "Číslo stránky (od 1). Predvolené: 1.",
+    "pageSize": "Velkosť stránky (max 100). Predvolené: 20.",
+    "limit": "Maximálny počet záznamov.",
+    "offset": "Kurzorové stránkovanie.",
+    "cursor": "Kurzor pre stránkovanie (z predchádzajúcej odpovede).",
+    "after": "Len zaznameny po tomto id/cursor.",
+    "before": "Len zaznameny pred id/cursor.",
+    "since": "Len zmeny po tomto okamihu (ISO 8601). Príklad: 2026-01-01T00:00:00Z",
+    "createdAfter": "Len dokumenty vytvorené po tomto okamihu (ISO 8601).",
+    "until": "Len zmeny pred tomto okamihu (ISO 8601).",
+    "direction": "Smer: asc alebo desc (predvolené desc).",
+    "sort": "Zoradenie podľa poradia. Predvolené: -created_at.",
+    "q": "Textový dotaz (fulltext).",
+    "name": "Filtrovať podľa názvu.",
+    "customerRef": "Vlastná referencia klienta — povinná u大部分 Connector operácií.",
+    "firmRef": "Referencia na interný identifikátor firmy.",
+    "all": "true vráti všetky záznamy bez stránkovania.",
+    "include": "Zahrnuté časti: items, events, documents, lines, attachments.",
+    "exclude": "Vylúčené časti.",
+    "statuses": "Filter stavov (opakovaný parameter).",
+    "types": "Filter typov (opakovaný parameter).",
+    "test": "Príznak testovacej udalosti (true/false).",
+    "actorType": "Typ aktéra: user, api, system.",
+    "async": "true — operácia na pozadí, okamžitá odpoveď.",
+    "dryRun": "Kontrola bez vykonania. Predvolené true.",
+    "verbose": "Zahrnúť dodatočné detailné polia.",
+    "pageToken": "Token pre pokračovanie (vrátený v predchádzajúcej odpovedi).",
+    "status": "Stav dokumentu (napr. received, processing, delivered)."
+  },
+  "endpoints": {
+    "POST /sapi/auth/token": {
+      "d": "Vydá prístupový JWT token a refresh token pomocou OAuth 2.0 client_credentials grantu. Token expiruje za 15 minút, refresh token za 30 dní. Priradenie: klient `demo_swagger_client` / `demo_secret_swagger_12345` funguje len proti demo prostrediu.",
+      "b": {
+        "example": {
+          "grant_type": "client_credentials",
+          "client_id": "demo_swagger_client",
+          "client_secret": "demo_secret_swagger_12345"
+        }
+      }
+    },
+    "GET /sapi/auth/token/status": {
+      "d": "Skontroluje platnosť aktuálneho access token — expiraciu, scopes, identitu klienta."
+    },
+    "POST /sapi/auth/renew": {
+      "d": "Obnoví prístupový token pomocou refresh_tokenu. Volané, ked token expiroval.",
+      "b": {
+        "example": {
+          "grant_type": "refresh_token",
+          "refresh_token": "<KEY>"
+        }
+      }
+    },
+    "POST /sapi/auth/revoke": {
+      "d": "Zruší refresh token (RFC 7009). Po zrušeni uzavretie prístupu.",
+      "b": {
+        "example": {
+          "token": "<KEY>",
+          "token_type_hint": "refresh_token"
+        }
+      }
+    },
+    "POST /sapi/document/send": {
+      "d": "Odošle elektronicky dokument cez Peppol (faktúra, dobropis, objednávka). Vrati providerDocumentId + initial status. Dokument musi prejst BIS validaciou.",
+      "b": {
+        "example": {
+          "documentType": "invoice",
+          "receiver": {
+            "scheme": "iso6523-icd",
+            "id": "31315263"
+          },
+          "sender": {
+            "scheme": "iso6523-icd",
+            "id": "43115885"
+          },
+          "lines": [
+            {
+              "name": "Služba 1",
+              "quantity": 1,
+              "unitPrice": 100
+            }
+          ]
+        }
+      }
+    },
+    "GET /sapi/document/receive": {
+      "d": "Zoznam prijatých (inbound) dokumentov s kurzorovym stránkovanim.",
+      "p": {
+        "cursor": "Kurzor z predchádzajúcej odpovede.",
+        "limit": "Max 100 dokumentov na stranku."
+      }
+    },
+    "GET /sapi/document/receive/{documentId}": {
+      "d": "Detail jedného prijatého dokumentu vrátane base64 UBL payloadu."
+    },
+    "POST /sapi/document/receive/{documentId}/acknowledge": {
+      "d": "Potvrdí prevzatie dokumentu (idempotente).",
+      "b": {
+        "example": {}
+      }
+    },
+    "GET /api/v1/connector/documents": {
+      "d": "Zoznam business dokumentov — povinný customerRef.",
+      "p": {
+        "customerRef": "Referencia klienta. Príklad: acme-corp"
+      }
+    },
+    "POST /api/v1/connector/documents": {
+      "d": "Vytvorí (naimportuje) business dokument z JSON.",
+      "b": {
+        "example": {
+          "customerRef": "acme-corp",
+          "documentType": "invoice",
+          "data": {
+            "invoiceNumber": "2026-001",
+            "total": 121.0,
+            "lines": [
+              {
+                "name": "Služba",
+                "quantity": 1,
+                "unitPrice": 100
+              }
+            ]
+          }
+        }
+      }
+    },
+    "GET /api/v1/connector/documents/{documentId}": {
+      "d": "Detail business dokumentu — stav, evidencie, životný cyklus."
+    },
+    "POST /api/v1/connector/documents/{documentId}/send": {
+      "d": "Odošle naimportovaný dokument do Peppol siete."
+    },
+    "POST /api/v1/connector/documents/{documentId}/cancel": {
+      "d": "Zruší naimportovany dokument pred odoslanim."
+    },
+    "POST /api/v1/connector/documents/{documentId}/acknowledge": {
+      "d": "Potvrdi lokálne spracovanie inbound dokumentu v ERP.",
+      "b": {
+        "example": {
+          "processedAt": "2026-01-01T10:00:00Z",
+          "erpReference": "ERP-2026-001"
+        }
+      }
+    },
+    "POST /api/v1/connector/documents/{documentId}/respond": {
+      "d": "Odpoveď na faktúru (accept / reject / under_query).",
+      "b": {
+        "example": {
+          "responseType": "accept",
+          "note": "Faktúra v poriadku.",
+          "occurredAt": "2026-01-01T10:00:00Z"
+        }
+      }
+    },
+    "GET /api/v1/connector/documents/{documentId}/evidence": {
+      "d": "Evidencie — AS4 doklady, MLS, kľúče."
+    },
+    "GET /api/v1/connector/documents/{documentId}/ubl": {
+      "d": "Povodný UBL XML dokument."
+    },
+    "GET /api/v1/connector/documents/{documentId}/pdf": {
+      "d": "PDF náhled dokumentu."
+    },
+    "GET /api/v1/connector/events": {
+      "d": "Event stream Connector — kurzorove stránkovanie, životný cyklus dokumentov.",
+      "p": {
+        "cursor": "Kurzor z predchádzajúcej odpovede.",
+        "limit": "Udalosti na stránku."
+      }
+    },
+    "GET /api/v1/connector/webhook": {
+      "d": "Načita konfiguráciu Connector webhooku."
+    },
+    "PUT /api/v1/connector/webhook": {
+      "d": "Vytvorí alebo aktualizuje Connector webhook.",
+      "b": {
+        "example": {
+          "url": "https://webhook.example.com/epostak",
+          "events": [
+            "document.received",
+            "document.sent"
+          ],
+          "secret": "whsec_sample_secret"
+        }
+      }
+    },
+    "DELETE /api/v1/connector/webhook": {
+      "d": "Zmaže Connector webhook konfiguráciu."
+    },
+    "POST /api/v1/connector/webhook/rotate-secret": {
+      "d": "Rotuje HMAC podpisový sekret webhooku. Vráti nový secret.",
+      "b": {
+        "example": {}
+      }
+    },
+    "POST /api/v1/connector/webhook/test": {
+      "d": "Naskladňuje syntetickú testovaciu udalosť na webhook.",
+      "b": {
+        "example": {
+          "eventType": "document.received"
+        }
+      }
+    },
+    "GET /api/v1/connector/webhook/deliveries": {
+      "d": "História doručení webhooku.",
+      "p": {
+        "limit": "Max zaznamov na stranku.",
+        "cursor": "Kurzor stránkovania."
+      }
+    },
+    "GET /api/v1/connector/webhook/deliveries/{deliveryId}": {
+      "d": "Detail jednotlivého doručenia."
+    },
+    "POST /api/v1/connector/webhook/deliveries/{deliveryId}/replay": {
+      "d": "Znovu odosle presnú Connector udalost."
+    },
+    "POST /api/v1/connector/webhook/test-suite": {
+      "d": "Spustí testovaciu sadu príjemcu (7 testov).",
+      "b": {
+        "example": {
+          "webhookUrl": "https://webhook.example.com/epostak",
+          "secret": "whsec_sample_secret"
+        }
+      }
+    },
+    "GET /api/v1/connector/webhook/test-suite/{testRunId}": {
+      "d": "Sleduje stav testovacej sady (priebeh 7 testov)."
+    },
+    "POST /api/v1/connector/mapper": {
+      "d": "Dry-run Connector Mapperu — napovie, ako ERP payload dopadne.",
+      "b": {
+        "example": {
+          "format": "json",
+          "data": {
+            "invoiceNumber": "2026-001",
+            "total": 121.0
+          },
+          "erpKind": "json"
+        }
+      }
+    },
+    "POST /api/v1/connector/autopilot": {
+      "d": "Autopilot — managed tok na odosielanie.",
+      "b": {
+        "example": {
+          "customerRef": "acme-corp",
+          "mode": "auto",
+          "dryRun": true
+        }
+      }
+    },
+    "GET /api/v1/connector/autopilot/{autopilotId}": {
+      "d": "Autopilot — status behu."
+    },
+    "GET /api/v1/connector/sync": {
+      "d": "Rekonciliacia — zosynchronizuje dokumenty klienta.",
+      "p": {
+        "customerRef": "Referencia klienta."
+      }
+    },
+    "POST /api/v1/documents/send": {
+      "d": "Odosle dokument — dry-run validácia, potom sa uloží do fronty doručenia.",
+      "b": {
+        "example": {
+          "receiver": {
+            "scheme": "iso6523-icd",
+            "id": "31315263"
+          },
+          "documentType": "invoice",
+          "lines": [
+            {
+              "name": "Položka A",
+              "quantity": 1,
+              "unitPrice": 50
+            }
+          ]
+        }
+      }
+    },
+    "POST /api/v1/documents/send/batch": {
+      "d": "Batch odoslanie — max 50 dokumentov.",
+      "b": {
+        "example": {
+          "items": [
+            {
+              "receiver": {
+                "scheme": "iso6523-icd",
+                "id": "31315263"
+              },
+              "documentType": "invoice"
+            },
+            {
+              "receiver": {
+                "scheme": "iso6523-icd",
+                "id": "43115885"
+              },
+              "documentType": "credit-note"
+            }
+          ]
+        }
+      }
+    },
+    "POST /api/v1/documents/preflight": {
+      "d": "Pred-odosielacia validácia bez vytvorenia dokumentu (dry-run).",
+      "b": {
+        "example": {
+          "receiver": {
+            "scheme": "iso6523-icd",
+            "id": "31315263"
+          },
+          "documentType": "invoice"
+        }
+      }
+    },
+    "GET /api/v1/documents/{id}/status": {
+      "d": "Stav doručenia dokumentu (lifecycle)."
+    },
+    "POST /api/v1/documents/status/batch": {
+      "d": "Hromadný status — až 100 dokumentov.",
+      "b": {
+        "example": {
+          "ids": [
+            "d1",
+            "d2",
+            "d3"
+          ]
+        }
+      }
+    },
+    "GET /api/v1/documents/{id}/evidence": {
+      "d": "AS4 potvrdenie doručenia + MLS pre dokument."
+    },
+    "GET /api/v1/documents/{id}/support-packet": {
+      "d": "Support packet (ZIP manifest) pre dokument."
+    },
+    "GET /api/v1/documents/{id}/envelope": {
+      "d": "Podpísaná AS4 multi-part obálka z WORM archivu."
+    },
+    "GET /api/v1/documents/{id}/events": {
+      "d": "Chronologické udalosti životného cyklu dokumentu."
+    },
+    "GET /api/v1/documents/{id}/responses": {
+      "d": "História odpovedí na faktúru (Peppol responses)."
+    },
+    "GET /api/v1/documents/{id}/pdf": {
+      "d": "PDF zobrazenie dokumentu."
+    },
+    "GET /api/v1/documents/{id}/ubl": {
+      "d": "UBL XML payload dokumentu."
+    },
+    "POST /api/v1/documents/{id}/respond": {
+      "d": "Odpoveď na faktúru (accept/reject).",
+      "b": {
+        "example": {
+          "responseType": "accept",
+          "note": "Schválené.",
+          "occurredAt": "2026-01-01T10:00:00Z"
+        }
+      }
+    },
+    "POST /api/v1/documents/{id}/mark": {
+      "d": "Ručne označiť stav dokumentu (processed / archived).",
+      "b": {
+        "example": {
+          "status": "processed",
+          "occurredAt": "2026-01-01T10:00:00Z"
+        }
+      }
+    },
+    "GET /api/v1/documents/inbox": {
+      "d": "Stránkovaný zoznam prijatých faktúr (vlastná firma).",
+      "p": {
+        "page": "Stránka (od 1).",
+        "pageSize": "Položky na stránku (max 100).",
+        "statuses": "Filter stavov (opakovaný).",
+        "since": "Len po tomto okamihu."
+      }
+    },
+    "GET /api/v1/documents/inbox/{id}": {
+      "d": "Detail prijateho dokumentu včetne UBL payloadu."
+    },
+    "POST /api/v1/documents/inbox/{id}/acknowledge": {
+      "d": "Potvrdí spracovanie prijatého dokumentu (idempotente).",
+      "b": {
+        "example": {}
+      }
+    },
+    "GET /api/v1/documents/inbox/all": {
+      "d": "Cross-firm inbox — integrátorské klúče vidia všetky pripojené firmy.",
+      "p": {
+        "page": "Stránka.",
+        "pageSize": "Velkost stranky."
+      }
+    },
+    "GET /api/v1/inbound/documents": {
+      "d": "Inbound dokumenty — kurzorove stránkovanie, priame čerpanie Peppol.",
+      "p": {
+        "cursor": "Kurzor z predchádzajúcej odpovede.",
+        "limit": "Limit na stránku."
+      }
+    },
+    "GET /api/v1/inbound/documents/{id}": {
+      "d": "Detail inbound dokumentu."
+    },
+    "GET /api/v1/inbound/documents/{id}/ubl": {
+      "d": "Raw UBL XML inbound dokumentu."
+    },
+    "POST /api/v1/inbound/documents/{id}/ack": {
+      "d": "Explicitne potvrdenie, že inbound bol lokálne spracovaný.",
+      "b": {
+        "example": {}
+      }
+    },
+    "POST /api/v1/inbound/import": {
+      "d": "Importovať UBL dokument prijaty mimo Peppol.",
+      "b": {
+        "example": {
+          "filename": "invoice.xml",
+          "content": "<Invoice>...</Invoice>",
+          "customerRef": "acme-corp"
+        }
+      }
+    },
+    "GET /api/v1/outbound/documents": {
+      "d": "Zoznam odoslaných dokumentov."
+    },
+    "GET /api/v1/outbound/documents/{id}": {
+      "d": "Detail odoslaného dokumentu."
+    },
+    "GET /api/v1/outbound/documents/{id}/mdn": {
+      "d": "Raw AS4 MDN potvrdenie doručenia."
+    },
+    "GET /api/v1/outbound/documents/{id}/ubl": {
+      "d": "Raw UBL XML odoslaného dokumentu."
+    },
+    "GET /api/v1/outbound/events": {
+      "d": "Interný event stream dokumentov (lifecycle)."
+    },
+    "GET /api/v1/box/items": {
+      "d": "Zoznam Box položiek (trvala ulozenie/vracejca vrstva).",
+      "p": {
+        "page": "Stránka.",
+        "pageSize": "Velkost stranky."
+      }
+    },
+    "POST /api/v1/box/items": {
+      "d": "Uložit dokument do Box na neskoršie odoslani.",
+      "b": {
+        "example": {
+          "documentType": "invoice",
+          "receiver": {
+            "scheme": "iso6523-icd",
+            "id": "31315263"
+          },
+          "content": "<Invoice>...</Invoice>",
+          "scheduledFor": "2026-01-02T09:00:00Z"
+        }
+      }
+    },
+    "GET /api/v1/box/items/{itemId}": {
+      "d": "Detail Box položky."
+    },
+    "POST /api/v1/box/items/{itemId}/schedule": {
+      "d": "Nastavi čas odoslania Box položky.",
+      "b": {
+        "example": {
+          "scheduledFor": "2026-01-02T09:00:00Z"
+        }
+      }
+    },
+    "POST /api/v1/box/items/{itemId}/send-now": {
+      "d": "Ihned odoslať Box položku."
+    },
+    "POST /api/v1/box/items/{itemId}/retry": {
+      "d": "Znovu odoslať Box položku."
+    },
+    "POST /api/v1/box/items/{itemId}/cancel": {
+      "d": "Zrušiť Box položku."
+    },
+    "POST /api/v1/payloads/extract": {
+      "d": "OCR extrakcia s PDF / obrázka.",
+      "b": {
+        "example": {
+          "sourceUrl": "https://example.com/invoice.pdf",
+          "filename": "invoice.pdf"
+        }
+      }
+    },
+    "POST /api/v1/payloads/extract/batch": {
+      "d": "Batch OCR extrakcia — max 50 suborov.",
+      "b": {
+        "example": {
+          "files": [
+            {
+              "sourceUrl": "https://example.com/a.pdf",
+              "filename": "a.pdf"
+            },
+            {
+              "sourceUrl": "https://example.com/b.pdf",
+              "filename": "b.pdf"
+            }
+          ]
+        }
+      }
+    },
+    "POST /api/v1/payloads/review": {
+      "d": "Aplikuje ľudské opravy výsledku OCR bez nového OCR.",
+      "b": {
+        "example": {
+          "documentId": "d-001",
+          "corrections": {
+            "invoiceNumber": "2026-001",
+            "total": 121.0
+          }
+        }
+      }
+    },
+    "POST /api/v1/payloads/parse": {
+      "d": "Preparsovať UBL XML na normalizovany JSON.",
+      "b": {
+        "example": {
+          "ubl": "<Invoice xmlns=\"urn:oas...\">...</Invoice>"
+        }
+      }
+    },
+    "POST /api/v1/payloads/convert": {
+      "d": "Konverzia JSON <-> UBL XML.",
+      "b": {
+        "example": {
+          "source": "json",
+          "target": "ubl",
+          "data": {
+            "invoiceNumber": "2026-001",
+            "total": 121.0
+          }
+        }
+      }
+    },
+    "POST /api/v1/payloads/validate": {
+      "d": "Validuje dokument voči Peppol BIS 3.0 pravidlám (bez odoslania).",
+      "b": {
+        "example": {
+          "documentType": "invoice",
+          "data": {
+            "invoiceNumber": "2026-001",
+            "lines": [
+              {
+                "name": "Položka",
+                "quantity": 1,
+                "unitPrice": 100
+              }
+            ]
+          }
+        }
+      }
+    },
+    "POST /api/v1/validate": {
+      "d": "Public BIS validace — nevyzaduje prihlásenie.",
+      "b": {
+        "example": {
+          "documentType": "invoice",
+          "data": {
+            "lines": [
+              {
+                "name": "A",
+                "quantity": 1,
+                "unitPrice": 50
+              }
+            ]
+          }
+        }
+      }
+    },
+    "GET /api/v1/peppol/participants/{scheme}/{identifier}": {
+      "d": "SMP lookup — zisti, ake typy dokumentov priima ucastnik.",
+      "p": {
+        "scheme": "iso6523-icd (pre ICO) alebo iso6523-ecbr (DIC).",
+        "identifier": "IČO/DIČ ucastnika."
+      }
+    },
+    "GET /api/v1/peppol/participants/resolve": {
+      "d": "Úplne vyriesenie firmy na Peppol ucastnika v jednom kroku.",
+      "p": {
+        "ico": "8-miestne IČO.",
+        "dic": "DIČ."
+      }
+    },
+    "GET /api/v1/peppol/directory/search": {
+      "d": "Fulltextové vyhľadávanie v cache Peppol adresára (3.6M+ záznamov).",
+      "p": {
+        "q": "Text hlady (nazov firmy, IČO...).",
+        "limit": "Max vysledkov (25)."
+      }
+    },
+    "POST /api/v1/peppol/capabilities": {
+      "d": "Sonduje SMP ucastnika — ci prijima dany typ dokumentu.",
+      "b": {
+        "example": {
+          "scheme": "iso6523-icd",
+          "identifier": "31315263",
+          "documentType": "invoice"
+        }
+      }
+    },
+    "POST /api/v1/peppol/participants/batch": {
+      "d": "Batch kontrola — až 100 ucastnikov.",
+      "b": {
+        "example": {
+          "participants": [
+            {
+              "scheme": "iso6523-icd",
+              "identifier": "31315263"
+            },
+            {
+              "scheme": "iso6523-icd",
+              "identifier": "43115885"
+            }
+          ]
+        }
+      }
+    },
+    "GET /api/v1/company/lookup/{ico}": {
+      "d": "Vyhladanie firmy podla ICO — FS SR + Peppol status."
+    },
+    "POST /api/v1/consent-offers": {
+      "d": "Vytvorí chránenú pozvánku (consent offer) na firmu.",
+      "b": {
+        "example": {
+          "email": "admin@example.sk",
+          "identifier": {
+            "type": "ico",
+            "value": "31315263"
+          },
+          "redirectUrl": "https://app.example.com/success",
+          "scopes": [
+            "documents.read",
+            "documents.send"
+          ]
+        }
+      }
+    },
+    "GET /api/v1/consent-offers/{offerId}": {
+      "d": "Stav consent offer (created / sent / accepted / declined / expired)."
+    },
+    "GET /api/v1/customers": {
+      "d": "Zoznam White Label zákazníkov.",
+      "p": {
+        "cursor": "Kurzor strankovania.",
+        "page": "Stranka."
+      }
+    },
+    "POST /api/v1/customers": {
+      "d": "Vytvorí / upsert zákazníka.",
+      "b": {
+        "example": {
+          "customerRef": "acme-corp",
+          "name": "ACME, s.r.o.",
+          "email": "office@acme.sk"
+        }
+      }
+    },
+    "POST /api/v1/onboarding-requests": {
+      "d": "Žiadosť o send-only onboarding (kontrolovaný náhľad).",
+      "b": {
+        "example": {
+          "firmIdentifier": "31315263",
+          "identifierType": "ico",
+          "email": "admin@example.sk"
+        }
+      }
+    },
+    "GET /api/v1/onboarding-requests/{id}": {
+      "d": "Stav send-only onboarding žiadosti."
+    },
+    "GET /api/v1/firms": {
+      "d": "Zoznam prístupných firiem."
+    },
+    "GET /api/v1/firms/{id}": {
+      "d": "Detail firmy (ICO, DIČ, Peppol identifikátory, stavy)."
+    },
+    "GET /api/v1/firms/{id}/documents": {
+      "d": "Dokumenty firmy — inbox/outbox."
+    },
+    "POST /api/v1/firms/assign": {
+      "d": "Priradí firmu podľa DIČ/ICO.",
+      "b": {
+        "example": {
+          "identifiers": [
+            "31315263"
+          ],
+          "identifierType": "ico"
+        }
+      }
+    },
+    "POST /api/v1/firms/assign/batch": {
+      "d": "Batch priradenie — max 50 DIC/ICO.",
+      "b": {
+        "example": {
+          "identifiers": [
+            "31315263",
+            "31315264"
+          ],
+          "identifierType": "ico"
+        }
+      }
+    },
+    "POST /api/v1/firms/consent-link": {
+      "d": "Vytvorí one-time consent link (prihlásenie firmy).",
+      "b": {
+        "example": {
+          "firmIdentifier": "31315263",
+          "identifierType": "ico",
+          "email": "admin@example.sk"
+        }
+      }
+    },
+    "GET /api/v1/firms/consent-status": {
+      "d": "Consent status firmy.",
+      "p": {
+        "dic": "DIC firmy.",
+        "ico": "ICO firmy."
+      }
+    },
+    "POST /api/v1/firms/{id}/peppol-identifiers": {
+      "d": "Registrovať Peppol identifikátor (participantId) na firme.",
+      "b": {
+        "example": {
+          "participantId": "iso6523-icd::31315263",
+          "documentTypes": [
+            "invoice",
+            "credit-note"
+          ]
+        }
+      }
+    },
+    "GET /api/v1/white-label/participants": {
+      "d": "Zoznam spravovaných Peppol účastníkov (White Label).",
+      "p": {
+        "cursor": "Kurzor strankovania.",
+        "page": "Stranka."
+      }
+    },
+    "GET /api/v1/white-label/participants/{participantId}": {
+      "d": "Detail spravovaného účastníka."
+    },
+    "POST /api/v1/white-label/participants/registrations": {
+      "d": "Registrácia účastníka z FS SR webhooku / verifikačného tokenu.",
+      "b": {
+        "example": {
+          "provider": "fs_sr",
+          "webhookPayload": {
+            "ico": "31315263"
+          },
+          "verificationToken": "<KEY>"
+        }
+      }
+    },
+    "POST /api/v1/white-label/participants/migrations": {
+      "d": "Migrácia účastníka pomocou SMP migration code.",
+      "b": {
+        "example": {
+          "participantId": "iso6523-icd::31315263",
+          "smp": "smp.sk",
+          "migrationCode": "MIG-0001"
+        }
+      }
+    },
+    "POST /api/v1/white-label/participants/{participantId}/migration-code": {
+      "d": "Ziada SMP migration code — pre odchod ucastnika z platformy."
+    },
+    "GET /api/v1/white-label/operations/{operationId}": {
+      "d": "Stav operácie (manual_review / white-label)."
+    },
+    "GET /api/v1/integrator/keys": {
+      "d": "Zoznam integratorskych kľúčov.",
+      "p": {
+        "page": "Stranka."
+      }
+    },
+    "POST /api/v1/integrator/keys": {
+      "d": "Vytvori kľúč s urcenymi scopes.",
+      "b": {
+        "example": {
+          "name": "My integration",
+          "scopes": [
+            "documents:read",
+            "documents:send"
+          ],
+          "expiresAt": "2027-01-01T00:00:00Z",
+          "ipAllowlist": [
+            "203.0.113.10"
+          ]
+        }
+      }
+    },
+    "DELETE /api/v1/integrator/keys/{keyId}": {
+      "d": "Revocovat integratorky kľuc."
+    },
+    "GET /api/v1/integrator/licenses/info": {
+      "d": "Info o pláne + spotreba za obdobie."
+    },
+    "GET /api/v1/webhooks": {
+      "d": "Zoznam webhookov."
+    },
+    "POST /api/v1/webhooks": {
+      "d": "Vytvorí webhook subscription.",
+      "b": {
+        "example": {
+          "url": "https://webhook.example.com/epostak",
+          "events": [
+            "document.received",
+            "document.sent",
+            "document.failed"
+          ],
+          "secret": "whsec_sample_secret",
+          "active": true
+        }
+      }
+    },
+    "GET /api/v1/webhooks/{id}": {
+      "d": "Webhook detail — posledné dorucenia."
+    },
+    "PATCH /api/v1/webhooks/{id}": {
+      "d": "Aktualizuje webhook.",
+      "b": {
+        "example": {
+          "url": "https://webhook.example.com/v2",
+          "events": [
+            "document.received"
+          ],
+          "active": true
+        }
+      }
+    },
+    "DELETE /api/v1/webhooks/{id}": {
+      "d": "Zmaže webhook."
+    },
+    "POST /api/v1/webhooks/{id}/test": {
+      "d": "Pošle synteticky test event.",
+      "b": {
+        "example": {
+          "eventType": "document.received"
+        }
+      }
+    },
+    "POST /api/v1/webhooks/{id}/rotate-secret": {
+      "d": "Rotuje HMAC signing secret."
+    },
+    "GET /api/v1/webhooks/{id}/deliveries": {
+      "d": "História doručení webhooku (stránkované)."
+    },
+    "GET /api/v1/webhook-dead-letter": {
+      "d": "Dead-letter fronta — zle terminalne dorucenia."
+    },
+    "POST /api/v1/webhook-dead-letter/{deliveryId}/replay": {
+      "d": "Znovu odoslat neuspešne dorucenie."
+    },
+    "POST /api/v1/webhook-dead-letter/{deliveryId}/resolve": {
+      "d": "Označí chybu doručenia v dead-letter fronta ako vyriešenú.",
+      "b": {
+        "example": {
+          "resolvedBy": "admin@example.sk",
+          "note": "Manualna kontrola dokoncena"
+        }
+      }
+    },
+    "GET /api/v1/webhook-queue/all": {
+      "d": "Cross-firm webhook fronta."
+    },
+    "POST /api/v1/webhook-queue/all/batch-ack": {
+      "d": "Cross-firm hromadné potvrdenie eventov.",
+      "b": {
+        "example": {
+          "eventIds": [
+            "e1",
+            "e2"
+          ]
+        }
+      }
+    },
+    "GET /api/v1/events/pull": {
+      "d": "Pull nepovrhnutých eventov."
+    },
+    "POST /api/v1/events/{eventId}/ack": {
+      "d": "Potvrdí jeden event."
+    },
+    "POST /api/v1/events/batch-ack": {
+      "d": "Potvrdí viac eventov naraz.",
+      "b": {
+        "example": {
+          "eventIds": [
+            "e1",
+            "e2"
+          ]
+        }
+      }
+    },
+    "GET /api/v1/reporting/statistics": {
+      "d": "Štatistiky dokumentov.",
+      "p": {
+        "from": "Od (ISO).",
+        "to": "Do (ISO).",
+        "groupBy": "Skupinovanie: day, week, month."
+      }
+    },
+    "GET /api/v1/audit": {
+      "d": "Audit feed.",
+      "p": {
+        "limit": "Max zaznamov (100).",
+        "actorType": "user / api / system."
+      }
+    },
+    "GET /api/v1/account": {
+      "d": "Informácie o účtu — plan, obmedzenia, spotreba."
+    }
+  }
+}

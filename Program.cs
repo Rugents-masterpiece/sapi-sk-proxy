@@ -106,6 +106,7 @@ builder.Services.AddSwaggerGen(c =>
     c.UseInlineDefinitionsForEnums();
 
     c.DocumentFilter<AddSecurityHeadersDocumentFilter>();
+    c.OperationFilter<SlovakDescriptionsOperationFilter>();
 });
 
 var app = builder.Build();
