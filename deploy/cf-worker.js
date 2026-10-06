@@ -8,7 +8,7 @@
  * so that the link works and redirects to the real Swagger UI (not the landing index).
  */
 
-const UPSTREAM = "https://queue-contributing-submit-olympics.trycloudflare.com";
+const UPSTREAM = "https://soviet-tiny-employer-polymer.trycloudflare.com";
 
 function corsHeaders(resp) {
   const h = new Headers(resp.headers);
